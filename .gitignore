@@ -216,3 +216,38 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Hardware & Sensor Data (RealSense)
+*.bag
+*.db3
+*.db3-shm
+*.db3-wal
+data/
+recordings/
+output/
+*.mp4
+*.avi
+*.png
+*.jpg
+
+# NVIDIA cuRobo & ML Caches
+.cache/
+*.pt
+*.pth
+*.onnx
+
+# OS & IDE Specific Files
+.vscode/
+*.code-workspace
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs and Build artifacts
+*.log
+build/
+dist/
+*.egg-info/
