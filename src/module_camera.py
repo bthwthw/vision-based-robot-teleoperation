@@ -63,10 +63,8 @@ class RealSenseNode:
         color_image_raw = np.asanyarray(color_frame.get_data())
         fmt = color_frame.profile.format()
         if fmt == rs.format.rgb8:
-            import cv2
             color_image = cv2.cvtColor(color_image_raw, cv2.COLOR_RGB2BGR)
         elif fmt == rs.format.rgba8:
-            import cv2
             color_image = cv2.cvtColor(color_image_raw, cv2.COLOR_RGBA2BGR)
         else:
             color_image = np.copy(color_image_raw)
