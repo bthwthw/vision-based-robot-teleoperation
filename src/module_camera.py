@@ -10,16 +10,16 @@ class RealSenseNode:
 
         if playback_file:
             if not os.path.exists(playback_file):
-                raise FileNotFoundError(f"[ERROR] Cannot find {playback_file}")
+                raise FileNotFoundError(f"[CAMERA ERROR] Cannot find {playback_file}")
             self.config.enable_device_from_file(playback_file, repeat_playback=True)
             self.profile = self.pipeline.start(self.config)
             self.profile.get_device().as_playback().set_real_time(True)
-            print("[INFO] Camera Node started in PLAYBACK mode.")
+            print("[CAMERA INFO] Camera Node started in PLAYBACK mode.")
         else:
             self.config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
             self.config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)
             self.profile = self.pipeline.start(self.config)
-            print("[INFO] Camera Node started in REAL-STREAM mode.")
+            print("[CAMERA INFO] Camera Node started in REAL-STREAM mode.")
 
         self.aligner = rs.align(rs.stream.color)
         self.colorizer = rs.colorizer()

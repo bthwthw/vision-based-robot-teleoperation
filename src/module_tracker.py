@@ -7,7 +7,7 @@ from mediapipe.tasks.python import vision
 class HandTrackerNode:
     def __init__(self, model_path='hand_landmarker.task'):
         if not os.path.exists(model_path):
-            raise FileNotFoundError(f"[ERROR] Cannot find '{model_path}'.")
+            raise FileNotFoundError(f"[TRACKER ERROR] Cannot find '{model_path}'.")
 
         self.latest_result = None
         self.last_mp_timestamp = 0
