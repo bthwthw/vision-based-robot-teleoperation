@@ -5,11 +5,15 @@ from src.module_camera import RealSenseNode
 from src.module_tracker import HandTrackerNode
 
 def main():
+    # None if live 
     IS_PLAYBACK = True
     
-    TCP_INDEX = 9
+    # None if virtual point (Midpoint of gripper)
+    TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
-    thres = 20 # OPEN-CLOSE threshold in mm
+    
+    # OPEN-CLOSE threshold in mm
+    thres = 20 
     
     if IS_PLAYBACK:
         playback_file = r"data/20260706_151013.db3" 
@@ -19,6 +23,7 @@ def main():
     tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
 
     cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
+    cv2.resizeWindow("Teleoperation Pipeline", 1000, 900)
 
     print("[INFO] Entering main execution loop...")
     
@@ -29,40 +34,19 @@ def main():
             if color_img is None:
                 continue
 
-            # keypoint detection
             tracker.detect_async(color_img, timestamp)
 
-            # draw skeleton and get keypoints
             color_img = tracker.draw_skeleton(color_img)
             landmarks = tracker.get_all_landmarks_pixel(color_img)
 
             if landmarks:
-                
-                P_TCP_3D = camera.extract_3d_coordinates(
-                    landmarks[TCP_INDEX][0], landmarks[TCP_INDEX][1], depth_frame, depth_arr
-                )
-                # visualize tcp 
-                if P_TCP_3D:
-                    uTCP, vTCP = landmarks[TCP_INDEX]
-                    cv2.circle(color_img, (uTCP, vTCP), 8, (0, 255, 255), cv2.FILLED)
-                    cv2.putText(color_img, "TCP", (uTCP + 10, vTCP - 10), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-                    
-                    tcp_text = f"TCP (X,Y,Z): {P_TCP_3D[0]:.3f}, {P_TCP_3D[1]:.3f}, {P_TCP_3D[2]:.3f} m"
-                    cv2.putText(color_img, tcp_text, (20, 50), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
-                else:
-                    cv2.putText(color_img, "TCP: No depth data (Z=0)", (20, 50), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+                u_gr1, v_gr1 = landmarks[GRIPPER_INDEXES[0]]
+                u_gr2, v_gr2 = landmarks[GRIPPER_INDEXES[1]]
 
-                # gripper distance calculation
-                GR1_3D = camera.extract_3d_coordinates(landmarks[GRIPPER_INDEXES[0]][0], landmarks[GRIPPER_INDEXES[0]][1], depth_frame, depth_arr)
-                GR2_3D = camera.extract_3d_coordinates(landmarks[GRIPPER_INDEXES[1]][0], landmarks[GRIPPER_INDEXES[1]][1], depth_frame, depth_arr)
+                GR1_3D = camera.extract_3d_coordinates(u_gr1, v_gr1, depth_frame, depth_arr)
+                GR2_3D = camera.extract_3d_coordinates(u_gr2, v_gr2, depth_frame, depth_arr)
                 
                 if GR1_3D and GR2_3D:
-                    u_gr1, v_gr1 = landmarks[GRIPPER_INDEXES[0]]
-                    u_gr2, v_gr2 = landmarks[GRIPPER_INDEXES[1]]
-
                     cv2.circle(color_img, (u_gr1, v_gr1), 8, (255, 255, 0), cv2.FILLED)                    
                     cv2.circle(color_img, (u_gr2, v_gr2), 8, (255, 255, 0), cv2.FILLED)     
                     
@@ -72,6 +56,31 @@ def main():
                     cv2.putText(color_img, f"Status: {status}", (20, 130), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
                 
+                P_TCP_3D = None
+                
+                if TCP_INDEX is None:
+                    if GR1_3D and GR2_3D:
+                        P_TCP_3D = (
+                            (GR1_3D[0] + GR2_3D[0]) / 2.0,
+                            (GR1_3D[1] + GR2_3D[1]) / 2.0,
+                            (GR1_3D[2] + GR2_3D[2]) / 2.0
+                        )
+                        uTCP = int((u_gr1 + u_gr2) / 2)
+                        vTCP = int((v_gr1 + v_gr2) / 2)
+                else:
+                    uTCP, vTCP = landmarks[TCP_INDEX]
+                    P_TCP_3D = camera.extract_3d_coordinates(uTCP, vTCP, depth_frame, depth_arr)
+
+                if P_TCP_3D:
+                    tcp_color = (0, 0, 255)
+                    cv2.circle(color_img, (uTCP, vTCP), 8, tcp_color, cv2.FILLED)\
+                    
+                    tcp_text = f"TCP (X,Y,Z): {P_TCP_3D[0]:.3f}, {P_TCP_3D[1]:.3f}, {P_TCP_3D[2]:.3f} m"
+                    cv2.putText(color_img, tcp_text, (20, 50), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, tcp_color, 2, cv2.LINE_AA)
+                else:
+                    cv2.putText(color_img, "TCP: No depth data (Z=0)", (20, 50), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
             else:
                 cv2.putText(color_img, "[Warning] Cannot find hand", (20, 50), 
