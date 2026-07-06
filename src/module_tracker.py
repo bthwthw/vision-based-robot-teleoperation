@@ -57,20 +57,18 @@ class HandTrackerNode:
             cv2.circle(bgr_image, pt, 4, (0, 215, 255), -1)
 
         return bgr_image
-
-    def get_keypoints_pixel(self, bgr_image):
+    
+    def get_all_landmarks_pixel(self, bgr_image):
+        """
+        return List of 21 tuples (u, v) or None if no hand detected
+        """
         if not self.latest_result or not self.latest_result.hand_landmarks:
             return None
-        
         h, w, _ = bgr_image.shape
-        lm = self.latest_result.hand_landmarks[0]
-        return {
-            'P0': (int(lm[0].x * w), int(lm[0].y * h)),
-            'P4': (int(lm[4].x * w), int(lm[4].y * h)),
-            'P5': (int(lm[5].x * w), int(lm[5].y * h)),
-            'P8': (int(lm[8].x * w), int(lm[8].y * h)),
-            'P9': (int(lm[9].x * w), int(lm[9].y * h))
-        }
-
+        lm_list = self.latest_result.hand_landmarks[0]
+        pixel_landmarks = [(int(lm.x * w), int(lm.y * h)) for lm in lm_list]
+        
+        return pixel_landmarks
+    
     def close(self):
         self.detector.close()

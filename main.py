@@ -6,6 +6,11 @@ from src.module_tracker import HandTrackerNode
 
 def main():
     IS_PLAYBACK = True
+    
+    TCP_INDEX = 9
+    GRIPPER_INDEXES = [4, 8]     
+    thres = 20 # OPEN-CLOSE threshold in mm
+    
     if IS_PLAYBACK:
         playback_file = r"data/20260706_151013.db3" 
     else:
@@ -29,22 +34,21 @@ def main():
 
             # draw skeleton and get keypoints
             color_img = tracker.draw_skeleton(color_img)
-            keypoints = tracker.get_keypoints_pixel(color_img)
+            landmarks = tracker.get_all_landmarks_pixel(color_img)
 
-            if keypoints:
-                # TCP coordinate 
-                P9_3D = camera.extract_3d_coordinates(
-                    keypoints['P9'][0], keypoints['P9'][1], depth_frame, depth_arr
-                )
+            if landmarks:
                 
+                P_TCP_3D = camera.extract_3d_coordinates(
+                    landmarks[TCP_INDEX][0], landmarks[TCP_INDEX][1], depth_frame, depth_arr
+                )
                 # visualize tcp 
-                if P9_3D:
-                    u9, v9 = keypoints['P9']
-                    cv2.circle(color_img, (u9, v9), 8, (0, 255, 255), cv2.FILLED)
-                    cv2.putText(color_img, "TCP (P9)", (u9 + 10, v9 - 10), 
+                if P_TCP_3D:
+                    uTCP, vTCP = landmarks[TCP_INDEX]
+                    cv2.circle(color_img, (uTCP, vTCP), 8, (0, 255, 255), cv2.FILLED)
+                    cv2.putText(color_img, "TCP", (uTCP + 10, vTCP - 10), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
                     
-                    tcp_text = f"TCP (X,Y,Z): {P9_3D[0]:.3f}, {P9_3D[1]:.3f}, {P9_3D[2]:.3f} m"
+                    tcp_text = f"TCP (X,Y,Z): {P_TCP_3D[0]:.3f}, {P_TCP_3D[1]:.3f}, {P_TCP_3D[2]:.3f} m"
                     cv2.putText(color_img, tcp_text, (20, 50), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
                 else:
@@ -52,12 +56,17 @@ def main():
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
                 # gripper distance calculation
-                P4_3D = camera.extract_3d_coordinates(keypoints['P4'][0], keypoints['P4'][1], depth_frame, depth_arr)
-                P8_3D = camera.extract_3d_coordinates(keypoints['P8'][0], keypoints['P8'][1], depth_frame, depth_arr)
+                GR1_3D = camera.extract_3d_coordinates(landmarks[GRIPPER_INDEXES[0]][0], landmarks[GRIPPER_INDEXES[0]][1], depth_frame, depth_arr)
+                GR2_3D = camera.extract_3d_coordinates(landmarks[GRIPPER_INDEXES[1]][0], landmarks[GRIPPER_INDEXES[1]][1], depth_frame, depth_arr)
                 
-                if P4_3D and P8_3D:
-                    thres = 20 # mm
-                    dist_3d_mm = math.sqrt((P8_3D[0] - P4_3D[0])**2 + (P8_3D[1] - P4_3D[1])**2 + (P8_3D[2] - P4_3D[2])**2) * 1000
+                if GR1_3D and GR2_3D:
+                    u_gr1, v_gr1 = landmarks[GRIPPER_INDEXES[0]]
+                    u_gr2, v_gr2 = landmarks[GRIPPER_INDEXES[1]]
+
+                    cv2.circle(color_img, (u_gr1, v_gr1), 8, (255, 255, 0), cv2.FILLED)                    
+                    cv2.circle(color_img, (u_gr2, v_gr2), 8, (255, 255, 0), cv2.FILLED)     
+                    
+                    dist_3d_mm = math.sqrt((GR2_3D[0] - GR1_3D[0])**2 + (GR2_3D[1] - GR1_3D[1])**2 + (GR2_3D[2] - GR1_3D[2])**2) * 1000
                     status = "Close" if dist_3d_mm < thres else "Open"
                     color = (0, 0, 255) if dist_3d_mm < thres else (0, 255, 0)
                     cv2.putText(color_img, f"Status: {status}", (20, 130), 
@@ -68,10 +77,8 @@ def main():
                 cv2.putText(color_img, "[Warning] Cannot find hand", (20, 50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
-            # 5. Xử lý bản đồ nhiệt và hiển thị
             depth_colormap = camera.colorize_depth(depth_frame)
             
-            # Khớp tỷ lệ hai ảnh để nối dọc
             if depth_colormap.shape[1] != color_img.shape[1]:
                 scale = color_img.shape[1] / depth_colormap.shape[1]
                 depth_colormap = cv2.resize(depth_colormap, (color_img.shape[1], int(depth_colormap.shape[0] * scale)))
