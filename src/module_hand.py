@@ -6,15 +6,15 @@ class HandKinematics:
     3d point to Quaternion and Euler.
     """
     @staticmethod
-    def compute_orientation(P0, P5, P9, P17):
+    def compute_orientation(P1, P2, P3, P4):
         """
         Input: tuple (X, Y, Z) of 4 ponits
         Output: dict include Rotation Matrix, Quaternion (w, x, y, z) and Euler RPY (deg)
         """
-        p1 = np.array(P0)
-        p2 = np.array(P5)
-        p3 = np.array(P9)
-        p4 = np.array(P17)
+        p1 = np.array(P1)
+        p2 = np.array(P2)
+        p3 = np.array(P3)
+        p4 = np.array(P4)
 
         # Z
         v_5_1 = p2 - p1
