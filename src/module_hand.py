@@ -6,31 +6,31 @@ class HandKinematics:
     3d point to Quaternion and Euler.
     """
     @staticmethod
-    def compute_orientation(P1, P2, P3, P4):
+    def compute_orientation(P0, P1, P2, P5):
         """
+        Coordinate System: X (Red-Upward), Y (Green), Z (Blue-Approach)
         Input: tuple (X, Y, Z) of 4 ponits
         Output: dict include Rotation Matrix, Quaternion (w, x, y, z) and Euler RPY (deg)
         """
+        p0 = np.array(P0)
         p1 = np.array(P1)
         p2 = np.array(P2)
-        p3 = np.array(P3)
-        p4 = np.array(P4)
+        p5 = np.array(P5)
 
         # Z
-        v_5_1 = p2 - p1
-        v_17_1 = p4 - p1
-        z_axis = np.cross(v_5_1, v_17_1)
-        
-        # 0?
+        z_axis = p2 - p1
         norm_z = np.linalg.norm(z_axis)
         if norm_z < 1e-6:
             return None
         z_axis = z_axis / norm_z
 
+        # 
+        v_2_0 = p2 - p0
+        v_5_0 = p5 - p0
+        temp_up = np.cross(v_2_0, v_5_0)
+
         # Y
-        v_up = p3 - p1
-        y_axis = np.cross(z_axis, v_up)
-        
+        y_axis = np.cross(z_axis, temp_up)
         norm_y = np.linalg.norm(y_axis)
         if norm_y < 1e-6:
             return None
@@ -40,9 +40,8 @@ class HandKinematics:
         x_axis = np.cross(y_axis, z_axis)
         x_axis = x_axis / np.linalg.norm(x_axis)
 
-        # Rotation matrix R (3x3) 
         rot_matrix = np.column_stack((x_axis, y_axis, z_axis))
-
+        
         try:
             r = R.from_matrix(rot_matrix)
             

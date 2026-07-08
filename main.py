@@ -1,10 +1,13 @@
 import cv2
 import math
 import numpy as np
+import pyrealsense2 as rs 
+from scipy.spatial.transform import Rotation as R
+
 from src.module_camera import RealSenseNode
 from src.module_tracker import HandTrackerNode
 from src.module_hand import HandKinematics 
-import pyrealsense2 as rs 
+from src.module_filter import Position3DFilter, QuaternionFilter
 
 def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.015):
     try:
@@ -49,11 +52,11 @@ def draw_axes_legend(image):
     return image
 
 def main():
-    IS_PLAYBACK = False
+    IS_PLAYBACK = True
     
     TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
-    BASE_INDEXES = [3,4,7,8] 
+    BASE_INDEXES = [0,1,2,5] 
     thres = 20 # open-close threshold in mm
     
     if IS_PLAYBACK:
@@ -63,6 +66,8 @@ def main():
         
     camera = RealSenseNode(playback_file=playback_file)
     tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
+    tcp_filter = Position3DFilter(min_cutoff=1.5, beta=0.995)
+    quat_filter = QuaternionFilter(alpha=0.25)
 
     cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Teleoperation Pipeline", 1000, 900)
@@ -97,10 +102,10 @@ def main():
                     cv2.putText(color_img, f"Gripper: {status}", (20, 90), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
                 
-                BASE1_3D = camera.extract_3d_coordinates(landmarks[0][0], landmarks[0][1], depth_frame, depth_arr)
-                BASE2_3D = camera.extract_3d_coordinates(landmarks[5][0], landmarks[5][1], depth_frame, depth_arr)
-                BASE3_3D = camera.extract_3d_coordinates(landmarks[9][0], landmarks[9][1], depth_frame, depth_arr)
-                BASE4_3D = camera.extract_3d_coordinates(landmarks[17][0], landmarks[17][1], depth_frame, depth_arr)
+                BASE1_3D = camera.extract_3d_coordinates(landmarks[BASE_INDEXES[0]][0], landmarks[BASE_INDEXES[0]][1], depth_frame, depth_arr)
+                BASE2_3D = camera.extract_3d_coordinates(landmarks[BASE_INDEXES[1]][0], landmarks[BASE_INDEXES[1]][1], depth_frame, depth_arr)
+                BASE3_3D = camera.extract_3d_coordinates(landmarks[BASE_INDEXES[2]][0], landmarks[BASE_INDEXES[2]][1], depth_frame, depth_arr)
+                BASE4_3D = camera.extract_3d_coordinates(landmarks[BASE_INDEXES[3]][0], landmarks[BASE_INDEXES[3]][1], depth_frame, depth_arr)
 
                 if all(pt is not None for pt in [BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D]):
 
@@ -117,6 +122,7 @@ def main():
 
                     tcp_color = (0, 0, 255)
                     if P_TCP_3D:
+                        P_TCP_3D = tcp_filter.filter(P_TCP_3D, timestamp / 1000.0)
                         cv2.circle(color_img, (uTCP, vTCP), 8, tcp_color, cv2.FILLED)
                         
                         tcp_text = f"TCP Pos: X:{P_TCP_3D[0]:.3f} Y:{P_TCP_3D[1]:.3f} Z:{P_TCP_3D[2]:.3f} m"
@@ -126,6 +132,9 @@ def main():
                     orientation_data = HandKinematics.compute_orientation(BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D)
                     
                     if orientation_data:
+                        quat = quat_filter.filter(orientation_data['quaternion'])
+                        rot_matrix = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix()  # convert lại wxyz -> xyzw cho scipy
+                        rpy = R.from_matrix(rot_matrix).as_euler('xyz', degrees=True)
                         rot_matrix = orientation_data['matrix']
                         rpy = orientation_data['rpy']
                         quat = orientation_data['quaternion'] # Đã ở dạng w, x, y, z
