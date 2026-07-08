@@ -3,13 +3,13 @@ from scipy.spatial.transform import Rotation as R
 
 class HandKinematics:
     """
-    3d point to Quaternion và Euler.
+    3d point to Quaternion and Euler.
     """
     @staticmethod
     def compute_orientation(P0, P5, P9, P17):
         """
         Input: tuple (X, Y, Z) of 4 ponits
-        Output: dict include Rotation Matrix, Quaternion (x, y, z, w) and Euler RPY (deg)
+        Output: dict include Rotation Matrix, Quaternion (w, x, y, z) and Euler RPY (deg)
         """
         p1 = np.array(P0)
         p2 = np.array(P5)
@@ -45,13 +45,16 @@ class HandKinematics:
 
         try:
             r = R.from_matrix(rot_matrix)
-            # Quaternion (x, y, z, w) 
-            quaternion = r.as_quat() 
+            
+            # Scalar-first (w,x,y,z)
+            quat_xyzw = r.as_quat() 
+            quat_wxyz = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
+            
             euler_rpy = r.as_euler('xyz', degrees=True)
             
             return {
                 'matrix': rot_matrix,
-                'quaternion': quaternion,
+                'quaternion': quat_wxyz,
                 'rpy': euler_rpy
             }
             

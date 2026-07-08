@@ -3,7 +3,28 @@ import math
 import numpy as np
 from src.module_camera import RealSenseNode
 from src.module_tracker import HandTrackerNode
-from src.module_hand import HandKinematics
+from src.module_hand import HandKinematics 
+import pyrealsense2 as rs 
+
+def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.01):
+    try:
+        u0, v0 = rs.rs2_project_point_to_pixel(intrinsics, origin_3d)
+        p0 = (int(u0), int(v0))
+        
+        x_3d = np.array(origin_3d) + rot_matrix[:, 0] * axis_length
+        y_3d = np.array(origin_3d) + rot_matrix[:, 1] * axis_length
+        z_3d = np.array(origin_3d) + rot_matrix[:, 2] * axis_length
+        
+        ux, vx = rs.rs2_project_point_to_pixel(intrinsics, x_3d.tolist())
+        uy, vy = rs.rs2_project_point_to_pixel(intrinsics, y_3d.tolist())
+        uz, vz = rs.rs2_project_point_to_pixel(intrinsics, z_3d.tolist())
+        
+        cv2.line(image, p0, (int(ux), int(vx)), (0, 0, 255), 3) # X - Đỏ
+        cv2.line(image, p0, (int(uy), int(vy)), (0, 255, 0), 3) # Y - Lá
+        cv2.line(image, p0, (int(uz), int(vz)), (255, 0, 0), 3) # Z - Lam
+    except Exception as e:
+        pass
+    return image
 
 def main():
     IS_PLAYBACK = False
@@ -11,7 +32,7 @@ def main():
     TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
     BASE_INDEXES = [0, 5, 9, 17] 
-    thres = 20 # OPEN-CLOSE threshold in mm
+    thres = 20 # open-close threshold in mm
     
     if IS_PLAYBACK:
         playback_file = r"data/20260706_151013.db3" 
@@ -81,23 +102,30 @@ def main():
                         cv2.putText(color_img, tcp_text, (20, 50), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, tcp_color, 2, cv2.LINE_AA)
 
-                    
                     orientation_data = HandKinematics.compute_orientation(BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D)
                     
                     if orientation_data:
+                        rot_matrix = orientation_data['matrix']
                         rpy = orientation_data['rpy']
-                        quat = orientation_data['quaternion']
+                        quat = orientation_data['quaternion'] # Đã ở dạng w, x, y, z
                         
                         rpy_text = f"RPY: R:{rpy[0]:.1f} P:{rpy[1]:.1f} Y:{rpy[2]:.1f} deg"
                         cv2.putText(color_img, rpy_text, (20, 90), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 100, 255), 2, cv2.LINE_AA)
+                                    
+                        quat_text = f"Quat (w,x,y,z): [{quat[0]:.2f}, {quat[1]:.2f}, {quat[2]:.2f}, {quat[3]:.2f}]"
+                        cv2.putText(color_img, quat_text, (20, 160), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 100, 255), 2, cv2.LINE_AA)
+                        
+                        if P_TCP_3D:
+                            color_img = draw_3d_axes(color_img, camera.intrinsics, P_TCP_3D, rot_matrix)
                         
                 else:
-                    cv2.putText(color_img, "[MAIN WARNING] Kinematics: Missing 3D Base Points", (20, 50), 
+                    cv2.putText(color_img, "Kinematics: Missing 3D Base Points", (20, 50), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
             else:
-                cv2.putText(color_img, "[MAIN WARNING] Cannot find hand", (20, 50), 
+                cv2.putText(color_img, "[MAIN Warning] Cannot find hand", (20, 50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
             depth_colormap = camera.colorize_depth(depth_frame)
