@@ -1,3 +1,4 @@
+from datetime import datetime
 import cv2
 import math
 import numpy as np
@@ -8,6 +9,8 @@ from src.module_camera import RealSenseNode
 from src.module_tracker import HandTrackerNode
 from src.module_hand import HandKinematics 
 from src.module_filter import Position3DFilter, QuaternionFilter
+from src.module_logger import DataLogger
+from tools.analyze_filter import analyze
 
 def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.015):
     try:
@@ -66,8 +69,13 @@ def main():
         
     camera = RealSenseNode(playback_file=playback_file)
     tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
-    tcp_filter = Position3DFilter(min_cutoff=1.5, beta=5)
+    tcp_filter = Position3DFilter(min_cutoff=1.5, beta=10)
     quat_filter = QuaternionFilter(min_cutoff=1.5, beta=5)
+    
+    current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    mode_prefix = "PB" if IS_PLAYBACK else "RT"
+    log_filename = f"{mode_prefix}_{current_time_str}.csv"
+    logger = DataLogger(log_filename)
 
     cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Teleoperation Pipeline", 1000, 900)
@@ -120,25 +128,28 @@ def main():
                         uTCP, vTCP = landmarks[TCP_INDEX]
                         P_TCP_3D = camera.extract_3d_coordinates(uTCP, vTCP, depth_frame, depth_arr)
 
-                    tcp_color = (0, 0, 255)
                     if P_TCP_3D:
+                        raw_P_TCP_3D = P_TCP_3D
                         P_TCP_3D = tcp_filter.filter(P_TCP_3D, timestamp / 1000.0)
-                        cv2.circle(color_img, (uTCP, vTCP), 8, tcp_color, cv2.FILLED)
+                        u_disp, v_disp = rs.rs2_project_point_to_pixel(camera.intrinsics, P_TCP_3D)
+                        cv2.circle(color_img, (uTCP, vTCP), 8, (0, 255, 255), cv2.FILLED)
+                        cv2.circle(color_img, (int(u_disp), int(v_disp)), 8, (0, 0, 255), cv2.FILLED)
                         
                         tcp_text = f"TCP Pos: X:{P_TCP_3D[0]:.3f} Y:{P_TCP_3D[1]:.3f} Z:{P_TCP_3D[2]:.3f} m"
                         cv2.putText(color_img, tcp_text, (20, 50), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, tcp_color, 2, cv2.LINE_AA)
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
 
                     orientation_data = HandKinematics.compute_orientation(BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D)
                     
                     if orientation_data:
-                        quat = quat_filter.filter(orientation_data['quaternion'], timestamp / 1000.0)
-                        rot_matrix = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix()  # convert lại wxyz -> xyzw cho scipy
-                        rpy = R.from_matrix(rot_matrix).as_euler('xyz', degrees=True)
-                        
                         # rot_matrix = orientation_data['matrix']
                         # rpy = orientation_data['rpy']
                         # quat = orientation_data['quaternion'] 
+                        raw_quat = orientation_data['quaternion']
+                        
+                        quat = quat_filter.filter(orientation_data['quaternion'], timestamp / 1000.0)
+                        rot_matrix = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix()  # convert lại wxyz -> xyzw cho scipy
+                        rpy = R.from_matrix(rot_matrix).as_euler('xyz', degrees=True)
                         
                         rpy_text = f"RPY: R:{rpy[0]:.1f} P:{rpy[1]:.1f} Y:{rpy[2]:.1f} deg"
                         cv2.putText(color_img, rpy_text, (20, 130), 
@@ -150,6 +161,13 @@ def main():
                         
                         if P_TCP_3D:
                             color_img = draw_3d_axes(color_img, camera.intrinsics, P_TCP_3D, rot_matrix)
+                        
+                        logger.log(
+                            frame_timestamp_s=timestamp / 1000.0,
+                            raw_pos=raw_P_TCP_3D, filt_pos=P_TCP_3D,
+                            raw_quat=raw_quat, filt_quat=quat,
+                            gripper_dist_mm=dist_3d_mm if GR1_3D and GR2_3D else None,
+                        )
                         
                 else:
                     cv2.putText(color_img, "Kinematics: Missing 3D Base Points", (20, 50), 
@@ -179,8 +197,10 @@ def main():
     finally:
         tracker.close()
         camera.stop()
+        logger.close()
         cv2.destroyAllWindows()
         print("[MAIN INFO] Resources released successfully.")
+        analyze(logger.filepath)
 
 if __name__ == "__main__":
     main()
