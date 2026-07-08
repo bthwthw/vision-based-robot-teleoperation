@@ -6,7 +6,7 @@ from src.module_tracker import HandTrackerNode
 from src.module_hand import HandKinematics 
 import pyrealsense2 as rs 
 
-def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.01):
+def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.015):
     try:
         u0, v0 = rs.rs2_project_point_to_pixel(intrinsics, origin_3d)
         p0 = (int(u0), int(v0))
@@ -26,12 +26,34 @@ def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.01):
         pass
     return image
 
+def draw_axes_legend(image):
+    h, w, _ = image.shape
+    start_x = 20
+    start_y = h - 120 
+    
+    cv2.putText(image, "Coordinate System:", (start_x, start_y), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (200, 200, 200), 2, cv2.LINE_AA)
+    
+    cv2.line(image, (start_x, start_y + 25), (start_x + 30, start_y + 25), (0, 0, 255), 3)
+    cv2.putText(image, "X", (start_x + 40, start_y + 30), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
+    
+    cv2.line(image, (start_x, start_y + 55), (start_x + 30, start_y + 55), (0, 255, 0), 3)
+    cv2.putText(image, "Y", (start_x + 40, start_y + 60), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
+    
+    cv2.line(image, (start_x, start_y + 85), (start_x + 30, start_y + 85), (255, 0, 0), 3)
+    cv2.putText(image, "Z", (start_x + 40, start_y + 90), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2, cv2.LINE_AA)
+    
+    return image
+
 def main():
     IS_PLAYBACK = False
     
     TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
-    BASE_INDEXES = [0, 5, 9, 17] 
+    BASE_INDEXES = [3,4,7,8] 
     thres = 20 # open-close threshold in mm
     
     if IS_PLAYBACK:
@@ -72,7 +94,7 @@ def main():
                     dist_3d_mm = math.sqrt((GR2_3D[0] - GR1_3D[0])**2 + (GR2_3D[1] - GR1_3D[1])**2 + (GR2_3D[2] - GR1_3D[2])**2) * 1000
                     status = "Close" if dist_3d_mm < thres else "Open"
                     color = (0, 0, 255) if dist_3d_mm < thres else (0, 255, 0)
-                    cv2.putText(color_img, f"Gripper: {status}", (20, 130), 
+                    cv2.putText(color_img, f"Gripper: {status}", (20, 90), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
                 
                 BASE1_3D = camera.extract_3d_coordinates(landmarks[0][0], landmarks[0][1], depth_frame, depth_arr)
@@ -89,12 +111,11 @@ def main():
                             (GR1_3D[1] + GR2_3D[1]) / 2.0,
                             (GR1_3D[2] + GR2_3D[2]) / 2.0
                         ) if (GR1_3D and GR2_3D) else None
-                        tcp_color = (0, 165, 255)
                     else:
                         uTCP, vTCP = landmarks[TCP_INDEX]
                         P_TCP_3D = camera.extract_3d_coordinates(uTCP, vTCP, depth_frame, depth_arr)
-                        tcp_color = (0, 255, 255)
 
+                    tcp_color = (0, 0, 255)
                     if P_TCP_3D:
                         cv2.circle(color_img, (uTCP, vTCP), 8, tcp_color, cv2.FILLED)
                         
@@ -110,12 +131,12 @@ def main():
                         quat = orientation_data['quaternion'] # Đã ở dạng w, x, y, z
                         
                         rpy_text = f"RPY: R:{rpy[0]:.1f} P:{rpy[1]:.1f} Y:{rpy[2]:.1f} deg"
-                        cv2.putText(color_img, rpy_text, (20, 90), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 100, 255), 2, cv2.LINE_AA)
+                        cv2.putText(color_img, rpy_text, (20, 130), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2, cv2.LINE_AA)
                                     
                         quat_text = f"Quat (w,x,y,z): [{quat[0]:.2f}, {quat[1]:.2f}, {quat[2]:.2f}, {quat[3]:.2f}]"
                         cv2.putText(color_img, quat_text, (20, 160), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 100, 255), 2, cv2.LINE_AA)
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2, cv2.LINE_AA)
                         
                         if P_TCP_3D:
                             color_img = draw_3d_axes(color_img, camera.intrinsics, P_TCP_3D, rot_matrix)
@@ -127,6 +148,8 @@ def main():
             else:
                 cv2.putText(color_img, "[MAIN Warning] Cannot find hand", (20, 50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+
+            color_img = draw_axes_legend(color_img)
 
             depth_colormap = camera.colorize_depth(depth_frame)
             if depth_colormap.shape[1] != color_img.shape[1]:
