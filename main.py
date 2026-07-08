@@ -8,10 +8,9 @@ from src.module_hand import HandKinematics
 def main():
     IS_PLAYBACK = False
     
-    # CẤU HÌNH ĐIỂM ĐIỀU KHIỂN
     TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
-    BASE_INDEXES = [0, 5, 9, 17] # Các điểm bắt buộc để tính góc RPY
+    BASE_INDEXES = [0, 5, 9, 17] 
     thres = 20 # OPEN-CLOSE threshold in mm
     
     if IS_PLAYBACK:
@@ -25,7 +24,7 @@ def main():
     cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Teleoperation Pipeline", 1000, 900)
 
-    print("[INFO] Entering main execution loop...")
+    print("[MAIN INFO] Entering main execution loop...")
     
     try:
         while True:
@@ -94,11 +93,11 @@ def main():
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 100, 255), 2, cv2.LINE_AA)
                         
                 else:
-                    cv2.putText(color_img, "Kinematics: Missing 3D Base Points", (20, 50), 
+                    cv2.putText(color_img, "[MAIN WARNING] Kinematics: Missing 3D Base Points", (20, 50), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
             else:
-                cv2.putText(color_img, "[Warning] Cannot find hand", (20, 50), 
+                cv2.putText(color_img, "[MAIN WARNING] Cannot find hand", (20, 50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
 
             depth_colormap = camera.colorize_depth(depth_frame)
@@ -113,12 +112,12 @@ def main():
                 break
 
     except Exception as e:
-        print(f"[ERROR] {e}")
+        print(f"[MAIN ERROR] {e}")
     finally:
         tracker.close()
         camera.stop()
         cv2.destroyAllWindows()
-        print("[INFO] Resources released successfully.")
+        print("[MAIN INFO] Resources released successfully.")
 
 if __name__ == "__main__":
     main()
