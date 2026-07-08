@@ -2,7 +2,7 @@ import numpy as np
  
 class OneEuroFilter:
     """
-    One Euro Filter for filtering 3D position data along each axis (x, y, z).
+    speed (m/s) adaptive One Euro Filter for filtering 3D position data along each axis (x, y, z).
 
     Parameters:
         min_cutoff: cutoff frequency when speed is low, small -> smoother when stationary, but more lag
@@ -67,18 +67,38 @@ class Position3DFilter:
     def reset(self):
         for f in self.filters:
             f.reset()
- 
+            
  
 class QuaternionFilter:
     """
-    SLERP (Spherical Linear Interpolation) for filtering quaternion orientation data.
- 
-    alpha small -> smoother when stationary, but more lag
-    alpha big -> less lag when moving fast, but more noise
+    speed (rad/s) adaptive SLERP filter for filtering quaternion orientation data (w, x, y, z).
+    
+    Parameters:
+        min_cutoff: cutoff frequency when speed is low, small -> smoother when stationary, but more lag
+        beta: coefficient for increasing cutoff with speed, big -> less lag when moving fast, but more noise
+        d_cutoff: cutoff for the derivative (speed), usually default 1.0 is sufficient.
     """
-    def __init__(self, alpha=0.25):
-        self.alpha = alpha
-        self.q_prev = None  # scalar first 
+    def __init__(self, min_cutoff=1.5, beta=1.0, d_cutoff=1.0):
+        self.min_cutoff = min_cutoff
+        self.beta = beta
+        self.d_cutoff = d_cutoff
+        self.q_prev = None    
+        self.omega_prev = 0.0   
+        self.t_prev = None
+ 
+    @staticmethod
+    def _alpha(cutoff, dt):
+        tau = 1.0 / (2 * np.pi * cutoff)
+        return 1.0 / (1.0 + tau / dt)
+ 
+    @staticmethod
+    def _angle_between(q0, q1):
+        dot = np.dot(q0, q1)
+        if dot < 0.0:
+            q1 = -q1
+            dot = -dot
+        dot = np.clip(dot, -1.0, 1.0)
+        return 2.0 * np.arccos(dot)
  
     @staticmethod
     def _slerp(q0, q1, t):
@@ -103,19 +123,36 @@ class QuaternionFilter:
  
         return s0 * q0 + s1 * q1
  
-    def filter(self, quat_wxyz):
-        """quat_wxyz: np.array or tuple (w, x, y, z)"""
+    def filter(self, quat_wxyz, timestamp_s):
         q = np.array(quat_wxyz, dtype=float)
         q = q / np.linalg.norm(q)
  
-        if self.q_prev is None:
+        if self.q_prev is None or self.t_prev is None:
             self.q_prev = q
+            self.t_prev = timestamp_s
+            self.omega_prev = 0.0
             return q
  
-        q_filtered = self._slerp(self.q_prev, q, self.alpha)
+        dt = timestamp_s - self.t_prev
+        if dt <= 0:
+            return self.q_prev
+ 
+        omega = self._angle_between(self.q_prev, q) / dt
+ 
+        a_d = self._alpha(self.d_cutoff, dt)
+        omega_hat = a_d * omega + (1 - a_d) * self.omega_prev
+ 
+        cutoff = self.min_cutoff + self.beta * omega_hat
+        t = self._alpha(cutoff, dt)
+ 
+        q_filtered = self._slerp(self.q_prev, q, t)
+ 
         self.q_prev = q_filtered
+        self.omega_prev = omega_hat
+        self.t_prev = timestamp_s
         return q_filtered
  
     def reset(self):
         self.q_prev = None
- 
+        self.omega_prev = 0.0
+        self.t_prev = None

@@ -66,8 +66,8 @@ def main():
         
     camera = RealSenseNode(playback_file=playback_file)
     tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
-    tcp_filter = Position3DFilter(min_cutoff=1.5, beta=0.995)
-    quat_filter = QuaternionFilter(alpha=0.25)
+    tcp_filter = Position3DFilter(min_cutoff=1.5, beta=5)
+    quat_filter = QuaternionFilter(min_cutoff=1.5, beta=5)
 
     cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
     cv2.resizeWindow("Teleoperation Pipeline", 1000, 900)
@@ -132,12 +132,13 @@ def main():
                     orientation_data = HandKinematics.compute_orientation(BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D)
                     
                     if orientation_data:
-                        quat = quat_filter.filter(orientation_data['quaternion'])
+                        quat = quat_filter.filter(orientation_data['quaternion'], timestamp / 1000.0)
                         rot_matrix = R.from_quat([quat[1], quat[2], quat[3], quat[0]]).as_matrix()  # convert lại wxyz -> xyzw cho scipy
                         rpy = R.from_matrix(rot_matrix).as_euler('xyz', degrees=True)
-                        rot_matrix = orientation_data['matrix']
-                        rpy = orientation_data['rpy']
-                        quat = orientation_data['quaternion'] # Đã ở dạng w, x, y, z
+                        
+                        # rot_matrix = orientation_data['matrix']
+                        # rpy = orientation_data['rpy']
+                        # quat = orientation_data['quaternion'] 
                         
                         rpy_text = f"RPY: R:{rpy[0]:.1f} P:{rpy[1]:.1f} Y:{rpy[2]:.1f} deg"
                         cv2.putText(color_img, rpy_text, (20, 130), 
@@ -157,6 +158,8 @@ def main():
             else:
                 cv2.putText(color_img, "[MAIN Warning] Cannot find hand", (20, 50), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+                tcp_filter.reset()
+                quat_filter.reset()
 
             color_img = draw_axes_legend(color_img)
 
