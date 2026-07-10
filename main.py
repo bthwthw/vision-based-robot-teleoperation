@@ -116,6 +116,7 @@ def main():
                 BASE4_3D = camera.extract_3d_coordinates(landmarks[BASE_INDEXES[3]][0], landmarks[BASE_INDEXES[3]][1], depth_frame, depth_arr)
 
                 if all(pt is not None for pt in [BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D]):
+                    raw_P_TCP_3D = None
 
                     if TCP_INDEX is None:
                         uTCP, vTCP = int((u_gr1 + u_gr2) / 2), int((v_gr1 + v_gr2) / 2)
