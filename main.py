@@ -55,7 +55,7 @@ def draw_axes_legend(image):
     return image
 
 def main():
-    IS_PLAYBACK = True
+    IS_PLAYBACK = False # True: playback from file, False: live stream from camera
     
     TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
