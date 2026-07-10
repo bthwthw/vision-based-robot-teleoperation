@@ -1,0 +1,23 @@
+
+=== FILTER ANALYSIS ===
+File   : RT_20260710_133750.csv
+Frames : 1290
+FPS    : mean=62.7ms | std=12.3ms | max=134.0ms
+
+[POSITION LAG]
+  X: 0.0 ms
+  Y: 0.0 ms
+  Z: 0.0 ms
+
+[ORIENTATION LAG]
+  Lag: 188.0 ms
+
+[JITTER REDUCTION]
+  X  : raw=2.58mm | filt=0.86mm (-67%)
+  Y  : raw=1.54mm | filt=0.52mm (-66%)
+  Z  : raw=8.64mm | filt=2.90mm (-66%)
+  Ori: raw=1.77deg | filt=0.63deg (-64%)
+
+[KINEMATIC CHECK]
+  Max AngVel: 1757 deg/s (Mean: 29.5 deg/s)
+ [ANALYZER WARN] AngVel > 1000 deg/s. Possible outlier/misdetection.
