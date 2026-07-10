@@ -230,8 +230,6 @@ recordings/
 output/
 *.mp4
 *.avi
-*.png
-*.jpg
 
 # NVIDIA cuRobo & ML Caches
 .cache/
