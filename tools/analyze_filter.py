@@ -65,7 +65,7 @@ def analyze(csv_path):
             report_lines.append(msg)
 
         # Header
-        log_print(f"=== FILTER ANALYSIS ===")
+        log_print(f"\n=== FILTER ANALYSIS ===")
         log_print(f"File   : {os.path.basename(csv_path)}")
         log_print(f"Frames : {len(df)}")
         log_print(f"FPS    : mean={np.mean(dt_arr)*1000:.1f}ms | std={np.std(dt_arr)*1000:.1f}ms | max={np.max(dt_arr)*1000:.1f}ms")
@@ -74,13 +74,13 @@ def analyze(csv_path):
             log_print("[ANALYZER WARN] High frame time variance detected. Metrics may be degraded.")
             
         # Position Lag
-        log_print("\n[ POSITION LAG ]")
+        log_print("\n[POSITION LAG]")
         for axis in ["x", "y", "z"]:
             lag = estimate_lag(t, df[f"raw_{axis}"], df[f"filt_{axis}"])
             log_print(f"  {axis.upper()}: {lag*1000:.1f} ms")
 
         # Orientation Lag
-        log_print("\n[ ORIENTATION LAG ]")
+        log_print("\n[ORIENTATION LAG]")
         raw_q = _fix_quaternion_continuity(df[["raw_qw", "raw_qx", "raw_qy", "raw_qz"]].to_numpy())
         filt_q = _fix_quaternion_continuity(df[["filt_qw", "filt_qx", "filt_qy", "filt_qz"]].to_numpy())
         
@@ -92,7 +92,7 @@ def analyze(csv_path):
         log_print(f"  Lag: {lag_ori*1000:.1f} ms")
 
         # Jitter Reduction
-        log_print("\n[ JITTER REDUCTION ]")
+        log_print("\n[JITTER REDUCTION]")
         for axis in ["x", "y", "z"]:
             jr = np.std(np.diff(df[f"raw_{axis}"])) * 1000
             jf = np.std(np.diff(df[f"filt_{axis}"])) * 1000
@@ -110,10 +110,10 @@ def analyze(csv_path):
 
         # Outlier Check
         omega_raw_deg_s = step_raw / dt_arr
-        log_print(f"\n[ KINEMATIC CHECK ]")
+        log_print(f"\n[KINEMATIC CHECK]")
         log_print(f"  Max AngVel: {np.max(omega_raw_deg_s):.0f} deg/s (Mean: {np.mean(omega_raw_deg_s):.1f} deg/s)")
         if np.max(omega_raw_deg_s) > 1000:
-            log_print("  [ANALYZER WARN] AngVel > 1000 deg/s. Possible outlier/misdetection.")
+            log_print(" [ANALYZER WARN] AngVel > 1000 deg/s. Possible outlier/misdetection.")
 
         # Export to TXT
         full_report = "\n".join(report_lines)
@@ -121,10 +121,10 @@ def analyze(csv_path):
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(full_report)
             
-        print(f"\n[ANALYZER INFO] Saved analysis to: {txt_path}")
+        print(f"\n[ANALYZER INFO] Saved analysis to: {txt_path}\n")
         
     except Exception as e:
-        print(f"[ANALYZER ERROR] Analysis failed: {e}")
+        print(f"[ANALYZER ERROR] Analysis failed: {e}\n")
 
 if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else "logs/session1.csv"
