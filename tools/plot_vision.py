@@ -117,21 +117,22 @@ def plot_evaluation_bar(df, save_path):
 
     labels, reductions = [], []
     
-    # Tính Jitter cho X, Y, Z
+     # Tính Jitter cho X, Y, Z (mean |diff|, đơn vị mm)
     for axis in ["x", "y", "z"]:
-        jr = np.std(np.diff(df[f"raw_{axis}"])) * 1000
-        jf = np.std(np.diff(df[f"filt_{axis}"])) * 1000
+        jr = np.diff(df[f"raw_{axis}"]).__abs__().mean() * 1000
+        jf = np.diff(df[f"filt_{axis}"]).__abs__().mean() * 1000
         reduction = 100 * (1 - jf / jr) if jr > 0 else 0
         labels.append(f"Axis {axis.upper()}")
         reductions.append(reduction)
 
-    # Tính Jitter cho Orientation
+    # Tính Jitter cho Orientation (mean |diff|, đơn vị deg)
     step_raw = df["raw_angle_deg"].diff().abs()
     step_filt = df["filt_angle_deg"].diff().abs()
-    jr_o, jf_o = step_raw.std(), step_filt.std()
+    jr_o, jf_o = step_raw.mean(), step_filt.mean()
     reduction_o = 100 * (1 - jf_o / jr_o) if jr_o > 0 else 0
     labels.append("Orientation")
     reductions.append(reduction_o)
+
 
     colors = ["#3498db", "#3498db", "#3498db", "#e67e22"] # Xanh cho Pos, Cam cho Ori
     bars = ax.bar(labels, reductions, color=colors, edgecolor='black', linewidth=0.5, width=0.6)

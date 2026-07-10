@@ -94,8 +94,8 @@ def analyze(csv_path):
         # Jitter Reduction
         log_print("\n[JITTER REDUCTION]")
         for axis in ["x", "y", "z"]:
-            jr = np.std(np.diff(df[f"raw_{axis}"])) * 1000
-            jf = np.std(np.diff(df[f"filt_{axis}"])) * 1000
+            jr = np.abs(np.diff(df[f"raw_{axis}"])).mean() * 1000
+            jf = np.abs(np.diff(df[f"filt_{axis}"])).mean() * 1000
             reduction = 100 * (1 - jf / jr) if jr > 0 else 0
             log_print(f"  {axis.upper()}  : raw={jr:.2f}mm | filt={jf:.2f}mm (-{reduction:.0f}%)")
 

@@ -11,6 +11,7 @@ from src.module_hand import HandKinematics
 from src.module_filter import Position3DFilter, QuaternionFilter
 from src.module_logger import DataLogger
 from tools.analyze_filter import analyze
+from tools.plot_vision import generate_report_figures
 
 def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.015):
     try:
@@ -201,7 +202,8 @@ def main():
         logger.close()
         cv2.destroyAllWindows()
         print("[MAIN INFO] Resources released successfully.")
-        analyze(logger.filepath)
+        analyze(logger.filepath)        
+        generate_report_figures(logger.filepath, out_dir="figs")
 
 if __name__ == "__main__":
     main()
