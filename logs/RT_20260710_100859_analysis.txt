@@ -1,0 +1,20 @@
+=== BÁO CÁO PHÂN TÍCH BỘ LỌC ===
+Tệp nguồn: RT_20260710_100859.csv
+Số lượng Frame hợp lệ: 358
+----------------------------------
+
+-- Độ trễ (Lag) theo từng trục vị trí --
+  Trục X: 57.0 ms
+  Trục Y: 228.0 ms
+  Trục Z: 171.0 ms
+
+-- Độ trễ (Lag) theo từng thành phần Quaternion --
+  qw: 57.0 ms
+  qx: 0.0 ms
+  qy: 0.0 ms
+  qz: -9234.0 ms
+
+-- Độ rung (Jitter/Std) - Raw vs Filtered --
+  Trục X: raw_std = 18.25 mm  |  filt_std = 18.36 mm
+  Trục Y: raw_std = 23.49 mm  |  filt_std = 22.00 mm
+  Trục Z: raw_std = 39.51 mm  |  filt_std = 31.98 mm
