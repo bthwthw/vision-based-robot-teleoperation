@@ -61,8 +61,8 @@ def main():
     TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
     BASE_INDEXES = [0,1,2,5] 
-    thres_open = 55.0   # (mm) open threshold
-    thres_close = 40.0  # (mm) close threshold
+    thres_open = 65.0   # (mm) open threshold
+    thres_close = 50.0  # (mm) close threshold
     gripper_state = "Open"
 
     if IS_PLAYBACK:
@@ -72,9 +72,9 @@ def main():
         
     camera = RealSenseNode(playback_file=playback_file)
     tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
-    tcp_filter = Position3DFilter(min_cutoff=0.5, beta=0, cutoff_max=15.0, reject_max_jump_mps=2.5)
+    tcp_filter = Position3DFilter(min_cutoff=0.1, beta=5.0, cutoff_max=15.0, reject_max_jump_mps=2.5)
     quat_filter = QuaternionFilter(min_cutoff=1.5, beta=1.0, cutoff_max=20.0, reject_max_omega=15.0)
-    gripper_filter = Scalar1DFilter(min_cutoff=1.0, beta=1.0, cutoff_max=20.0, reject_max_jump=3500.0)
+    gripper_filter = Scalar1DFilter(min_cutoff=1.0, beta=0.002, cutoff_max=10.0, reject_max_jump=3500.0)
     
     current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     mode_prefix = "PB" if IS_PLAYBACK else "RT"
@@ -176,7 +176,8 @@ def main():
                             frame_timestamp_s=timestamp / 1000.0,
                             raw_pos=raw_P_TCP_3D, filt_pos=P_TCP_3D,
                             raw_quat=raw_quat, filt_quat=quat,
-                            gripper_dist_mm=smoothed_dist_mm if GR1_3D and GR2_3D else None,
+                            raw_gripper_dist=raw_dist_mm,
+                            filt_gripper_dist=smoothed_dist_mm
                         )
                         
                 else:
