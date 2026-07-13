@@ -32,14 +32,7 @@ class OutlierRejector:
         limit = self.max_jump_per_sec * dt
 
         if delta > limit:
-            # Ngoại suy tuyến tính từ 2 điểm gần nhất thay vì nhận giá trị nhiễu
-            if len(self.history) >= 2:
-                extrapolated = self.history[-1] + (self.history[-1] - self.history[-2])
-            else:
-                extrapolated = self.history[-1]
-            self.history.append(extrapolated)
-            self.t_prev = timestamp_s
-            return extrapolated, True
+            return self.history[-1], True
 
         self.history.append(value)
         self.t_prev = timestamp_s
@@ -104,27 +97,48 @@ class OneEuroFilter:
         self.dx_prev = 0.0
         self.t_prev = None
  
+
+class Scalar1DFilter:
+    """
+    1D filter incorporate: Outlier Rejector and 1 Euro Filter
+    reject_max_jump_mps: (m/s) max speed threshold to reject 1-frame outlier - None to disable
+    """
+    def __init__(self, min_cutoff=1.0, beta=0.01, cutoff_max=12.0, reject_max_jump=None):
+        self.filter_1e = OneEuroFilter(min_cutoff, beta, cutoff_max=cutoff_max)
+        self.rejector = OutlierRejector(reject_max_jump) if reject_max_jump is not None else None
+
+    def filter(self, value, timestamp_s):
+        if value is None:
+            return None
+            
+        if self.rejector is not None:
+            value, is_outlier = self.rejector.check(value, timestamp_s)
+            
+        return self.filter_1e.filter(value, timestamp_s)
+
+    def reset(self):
+        self.filter_1e.reset()
+        if self.rejector is not None:
+            self.rejector.reset()
  
+ 
+
 class Position3DFilter:
     """
+    3D filter using 1D filters for each axis (x, y, z).
     reject_max_jump_mps: (m/s) max speed threshold to reject 1-frame outlier - None to disable
     """
     def __init__(self, min_cutoff=1.0, beta=0.02, cutoff_max=15.0, reject_max_jump_mps=2.5):
-        self.filters = [OneEuroFilter(min_cutoff, beta, cutoff_max=cutoff_max) for _ in range(3)]
-        self.rejectors = (
-            [OutlierRejector(reject_max_jump_mps) for _ in range(3)]
-            if reject_max_jump_mps is not None else None
-        )
+        self.filters = [
+            Scalar1DFilter(min_cutoff, beta, cutoff_max, reject_max_jump_mps) 
+            for _ in range(3)
+        ]
 
     def filter(self, point_3d, timestamp_s):
         if point_3d is None:
             return None
 
-        if self.rejectors is not None:
-            point_3d = tuple(
-                self.rejectors[i].check(point_3d[i], timestamp_s)[0] for i in range(3)
-            )
-
+        # Truyền từng giá trị (X, Y, Z) vào bộ lọc 1D tương ứng
         return tuple(
             f.filter(point_3d[i], timestamp_s) for i, f in enumerate(self.filters)
         )
@@ -132,11 +146,6 @@ class Position3DFilter:
     def reset(self):
         for f in self.filters:
             f.reset()
-        if self.rejectors is not None:
-            for r in self.rejectors:
-                r.reset()
-
-            
  
 class QuaternionFilter:
     """
@@ -213,7 +222,6 @@ class QuaternionFilter:
         omega_raw = self._angle_between(self.q_prev, q) / dt
 
         if self.reject_max_omega is not None and omega_raw > self.reject_max_omega:
-            self.t_prev = timestamp_s
             return self.q_prev
  
         a_d = self._alpha(self.d_cutoff, dt)
