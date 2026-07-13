@@ -96,7 +96,8 @@ def main():
             tracker.detect_async(color_img, timestamp)
             color_img = tracker.draw_skeleton(color_img)
             landmarks = tracker.get_all_landmarks_pixel(color_img)
-
+            handedness = tracker.get_handedness(color_img)
+            
             if landmarks:
                 u_gr1, v_gr1 = landmarks[GRIPPER_INDEXES[0]]
                 u_gr2, v_gr2 = landmarks[GRIPPER_INDEXES[1]]
@@ -149,7 +150,7 @@ def main():
                         cv2.putText(color_img, tcp_text, (20, 50), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
 
-                    orientation_data = HandKinematics.compute_orientation(BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D)
+                    orientation_data = HandKinematics.compute_orientation(BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D, handedness=handedness)
                     
                     if orientation_data:
                         # rot_matrix = orientation_data['matrix']

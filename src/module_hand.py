@@ -6,7 +6,7 @@ class HandKinematics:
     3d point to Quaternion and Euler.
     """
     @staticmethod
-    def compute_orientation(P0, P1, P2, P5):
+    def compute_orientation(P0, P1, P2, P5, handedness="Left"):
         """
         Coordinate System: X (Red-Upward), Y (Green), Z (Blue-Approach)
         Input: tuple (X, Y, Z) of 4 ponits
@@ -27,7 +27,11 @@ class HandKinematics:
         # 
         v_2_0 = p2 - p0
         v_5_0 = p5 - p0
-        temp_up = np.cross(v_2_0, v_5_0)
+        temp_up = np.cross(v_2_0, v_5_0) 
+
+        if handedness == "Right":
+            temp_up = -temp_up
+            # print ("[KINEMATICS INFO] Using Right-Handed Coordinate System.")
 
         # Y
         y_axis = np.cross(z_axis, temp_up)

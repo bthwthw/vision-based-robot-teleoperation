@@ -1,0 +1,27 @@
+
+=== FILTER ANALYSIS ===
+File   : RT_20260713_142711.csv
+Frames : 1199
+FPS    : mean=66.6ms | std=16.8ms | max=365.0ms
+[ANALYZER WARN] High frame time variance detected. Metrics may be degraded.
+
+[POSITION LAG]
+  X: 66.6 ms
+  Y: 0.0 ms
+  Z: 0.0 ms
+
+[ GRIPPER LAG ]
+  Dist: 0.0 ms
+
+[ORIENTATION LAG]
+  Lag: 0.0 ms
+
+[JITTER REDUCTION]
+  X  : raw=0.87mm | filt=0.28mm (-68%)
+  Y  : raw=0.85mm | filt=0.41mm (-52%)
+  Z  : raw=3.43mm | filt=1.75mm (-49%)
+  Grip: raw=12.59mm | filt=5.30mm (-58%)
+  Ori: raw=1.90deg | filt=1.13deg (-40%)
+
+[KINEMATIC CHECK]
+  Max AngVel: 248 deg/s (Mean: 29.5 deg/s)

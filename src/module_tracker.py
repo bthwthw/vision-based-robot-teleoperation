@@ -68,8 +68,15 @@ class HandTrackerNode:
         h, w, _ = bgr_image.shape
         lm_list = self.latest_result.hand_landmarks[0]
         pixel_landmarks = [(int(lm.x * w), int(lm.y * h)) for lm in lm_list]
-        
         return pixel_landmarks
+    
+    def get_handedness(self, bgr_image):
+        """
+        return the handedness label ("Left" or "Right") or None if no hand detected
+        """
+        if not self.latest_result or not self.latest_result.hand_landmarks:
+            return None
+        return self.latest_result.handedness[0][0].category_name
     
     def close(self):
         self.detector.close()
