@@ -61,8 +61,8 @@ def main():
     TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
     BASE_INDEXES = [0,1,2,5] 
-    thres_open = 65.0   # (mm) open threshold
-    thres_close = 50.0  # (mm) close threshold
+    thres_open = 75.0   # (mm) open threshold
+    thres_close = 65.0  # (mm) close threshold
     gripper_state = "Open"
 
     if IS_PLAYBACK:
@@ -81,8 +81,8 @@ def main():
     log_filename = f"{mode_prefix}_{current_time_str}.csv"
     logger = DataLogger(log_filename)
 
-    cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Teleoperation Pipeline", 1100, 1444)
+    # cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
+    # cv2.resizeWindow("Teleoperation Pipeline", 1000, 1440)
 
     print("[MAIN INFO] Entering main execution loop...")
     
@@ -97,7 +97,7 @@ def main():
             color_img = tracker.draw_skeleton(color_img)
             landmarks = tracker.get_all_landmarks_pixel(color_img)
             handedness = tracker.get_handedness(color_img)
-            
+
             if landmarks:
                 u_gr1, v_gr1 = landmarks[GRIPPER_INDEXES[0]]
                 u_gr2, v_gr2 = landmarks[GRIPPER_INDEXES[1]]
@@ -108,7 +108,7 @@ def main():
                 if GR1_3D and GR2_3D:
                     cv2.circle(color_img, (u_gr1, v_gr1), 8, (255, 255, 0), cv2.FILLED)                    
                     cv2.circle(color_img, (u_gr2, v_gr2), 8, (255, 255, 0), cv2.FILLED)     
-                    
+                    raw_dist_mm = None 
                     raw_dist_mm = math.sqrt((GR2_3D[0] - GR1_3D[0])**2 + (GR2_3D[1] - GR1_3D[1])**2 + (GR2_3D[2] - GR1_3D[2])**2) * 1000
                     
                     smoothed_dist_mm = gripper_filter.filter(raw_dist_mm, timestamp / 1000.0)
@@ -200,7 +200,7 @@ def main():
                 depth_colormap = cv2.resize(depth_colormap, (color_img.shape[1], int(depth_colormap.shape[0] * scale)))
                 
             combined_view = np.vstack((color_img, depth_colormap))
-            cv2.imshow("Teleoperation Pipeline", combined_view)
+            cv2.imshow("Teleoperation Pipeline", color_img)
 
             if cv2.waitKey(1) & 0xFF == 27:
                 break
