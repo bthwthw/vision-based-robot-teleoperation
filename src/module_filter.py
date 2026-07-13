@@ -9,10 +9,12 @@ class OutlierRejector:
         - Với góc (rad/s): cổ tay xoay nhanh hiếm khi vượt ~15 rad/s (~860 deg/s).
     window: số mẫu lịch sử dùng để tính trung vị tham chiếu.
     """
-    def __init__(self, max_jump_per_sec, window=5):
+    def __init__(self, max_jump_per_sec, window=5, max_rejects=10):
         self.max_jump_per_sec = max_jump_per_sec
         self.history = deque(maxlen=window)
         self.t_prev = None
+        self.reject_count = 0
+        self.max_rejects = 10
 
     def check(self, value, timestamp_s):
         """
@@ -32,7 +34,13 @@ class OutlierRejector:
         limit = self.max_jump_per_sec * dt
 
         if delta > limit:
-            return self.history[-1], True
+            self.reject_count += 1
+            if self.reject_count >= self.max_rejects:
+                self.history.clear()
+                self.history.append(value)
+                self.t_prev = timestamp_s
+                self.reject_count = 0
+                return value, False
 
         self.history.append(value)
         self.t_prev = timestamp_s
@@ -41,6 +49,7 @@ class OutlierRejector:
     def reset(self):
         self.history.clear()
         self.t_prev = None
+        self.reject_count = 0
 
 
 class OneEuroFilter:
@@ -101,18 +110,24 @@ class OneEuroFilter:
 class Scalar1DFilter:
     """
     1D filter incorporate: Outlier Rejector and 1 Euro Filter
-    reject_max_jump_mps: (m/s) max speed threshold to reject 1-frame outlier - None to disable
     """
-    def __init__(self, min_cutoff=1.0, beta=0.01, cutoff_max=12.0, reject_max_jump=None):
+    def __init__(self, min_cutoff=1.0, beta=0.01, cutoff_max=12.0, reject_max_jump=None, max_rejects=10):
         self.filter_1e = OneEuroFilter(min_cutoff, beta, cutoff_max=cutoff_max)
-        self.rejector = OutlierRejector(reject_max_jump) if reject_max_jump is not None else None
+        self.rejector = OutlierRejector(reject_max_jump, max_rejects=max_rejects) if reject_max_jump is not None else None
 
     def filter(self, value, timestamp_s):
         if value is None:
             return None
             
         if self.rejector is not None:
-            value, is_outlier = self.rejector.check(value, timestamp_s)
+            checked_val, is_outlier = self.rejector.check(value, timestamp_s)
+            
+            if is_outlier:
+                if self.filter_1e.x_prev is not None:
+                    return self.filter_1e.x_prev
+                return checked_val
+            
+            value = checked_val
             
         return self.filter_1e.filter(value, timestamp_s)
 
@@ -121,32 +136,28 @@ class Scalar1DFilter:
         if self.rejector is not None:
             self.rejector.reset()
  
- 
 
 class Position3DFilter:
     """
     3D filter using 1D filters for each axis (x, y, z).
     reject_max_jump_mps: (m/s) max speed threshold to reject 1-frame outlier - None to disable
     """
-    def __init__(self, min_cutoff=1.0, beta=0.02, cutoff_max=15.0, reject_max_jump_mps=2.5):
+    def __init__(self, min_cutoff=1.0, beta=0.02, cutoff_max=15.0, reject_max_jump_mps=2.5, max_rejects=10):
         self.filters = [
-            Scalar1DFilter(min_cutoff, beta, cutoff_max, reject_max_jump_mps) 
+            Scalar1DFilter(min_cutoff, beta, cutoff_max, reject_max_jump_mps, max_rejects) 
             for _ in range(3)
         ]
 
     def filter(self, point_3d, timestamp_s):
         if point_3d is None:
             return None
-
-        # Truyền từng giá trị (X, Y, Z) vào bộ lọc 1D tương ứng
-        return tuple(
-            f.filter(point_3d[i], timestamp_s) for i, f in enumerate(self.filters)
-        )
+        return tuple(f.filter(point_3d[i], timestamp_s) for i, f in enumerate(self.filters))
  
     def reset(self):
         for f in self.filters:
             f.reset()
  
+
 class QuaternionFilter:
     """
     speed (rad/s) adaptive SLERP filter for filtering quaternion orientation data (w, x, y, z).
@@ -158,15 +169,18 @@ class QuaternionFilter:
         cutoff_max: avoid spike/outlier 
         reject_max_omega: (rad/s) max angular speed threshold to reject 1-frame outlier - None to disable
     """
-    def __init__(self, min_cutoff=1.5, beta=1.0, d_cutoff=1.0, cutoff_max=20.0, reject_max_omega=15.0):
+    def __init__(self, min_cutoff=1.5, beta=1.0, d_cutoff=1.0, cutoff_max=20.0, reject_max_omega=15.0, max_rejects=10):
         self.min_cutoff = min_cutoff
         self.beta = beta
         self.d_cutoff = d_cutoff
         self.cutoff_max = cutoff_max
         self.reject_max_omega = reject_max_omega
+        self.max_rejects = max_rejects
+        
         self.q_prev = None    
         self.omega_prev = 0.0   
         self.t_prev = None
+        self.reject_count = 0
  
     @staticmethod
     def _alpha(cutoff, dt):
@@ -222,8 +236,18 @@ class QuaternionFilter:
         omega_raw = self._angle_between(self.q_prev, q) / dt
 
         if self.reject_max_omega is not None and omega_raw > self.reject_max_omega:
+            self.reject_count += 1
+            if self.reject_count >= self.max_rejects:
+                # Cập nhật lại toàn bộ hệ quy chiếu do có thể tracker đã thay đổi mục tiêu theo dõi
+                self.q_prev = q
+                self.t_prev = timestamp_s
+                self.omega_prev = 0.0
+                self.reject_count = 0
+                return q
             return self.q_prev
  
+        self.reject_count = 0
+
         a_d = self._alpha(self.d_cutoff, dt)
         omega_hat = a_d * omega_raw + (1 - a_d) * self.omega_prev
  
@@ -241,3 +265,4 @@ class QuaternionFilter:
         self.q_prev = None
         self.omega_prev = 0.0
         self.t_prev = None
+        self.reject_count = 0
