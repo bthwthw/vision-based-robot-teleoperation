@@ -72,7 +72,7 @@ def main():
         
     camera = RealSenseNode(playback_file=playback_file)
     tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
-    tcp_filter = Position3DFilter(min_cutoff=0.1, beta=5.0, cutoff_max=15.0, reject_max_jump_mps=2.5)
+    tcp_filter = Position3DFilter(min_cutoff=0.1, beta=15.0, cutoff_max=15.0, reject_max_jump_mps=2.5)
     quat_filter = QuaternionFilter(min_cutoff=1.5, beta=1.0, cutoff_max=20.0, reject_max_omega=15.0)
     gripper_filter = Scalar1DFilter(min_cutoff=1.0, beta=0.002, cutoff_max=10.0, reject_max_jump=3500.0)
     
@@ -82,7 +82,7 @@ def main():
     logger = DataLogger(log_filename)
 
     cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("Teleoperation Pipeline", 1000, 900)
+    cv2.resizeWindow("Teleoperation Pipeline", 1100, 1444)
 
     print("[MAIN INFO] Entering main execution loop...")
     
