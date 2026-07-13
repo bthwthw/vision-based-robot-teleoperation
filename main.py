@@ -8,7 +8,7 @@ from scipy.spatial.transform import Rotation as R
 from src.module_camera import RealSenseNode
 from src.module_tracker import HandTrackerNode
 from src.module_hand import HandKinematics 
-from src.module_filter import Position3DFilter, QuaternionFilter
+from src.module_filter import Position3DFilter, QuaternionFilter, Scalar1DFilter
 from src.module_logger import DataLogger
 from tools.analyze_filter import analyze
 from tools.plot_vision import generate_report_figures
@@ -61,8 +61,10 @@ def main():
     TCP_INDEX = None
     GRIPPER_INDEXES = [4, 8]     
     BASE_INDEXES = [0,1,2,5] 
-    thres = 20 # open-close threshold in mm
-    
+    thres_open = 55.0   # (mm) open threshold
+    thres_close = 40.0  # (mm) close threshold
+    gripper_state = "Open"
+
     if IS_PLAYBACK:
         playback_file = r"data/20260706_151013.db3" 
     else:
@@ -70,8 +72,9 @@ def main():
         
     camera = RealSenseNode(playback_file=playback_file)
     tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
-    tcp_filter = Position3DFilter(min_cutoff=5.0, beta=0, cutoff_max=15.0, reject_max_jump_mps=2.5)
+    tcp_filter = Position3DFilter(min_cutoff=0.5, beta=0, cutoff_max=15.0, reject_max_jump_mps=2.5)
     quat_filter = QuaternionFilter(min_cutoff=1.5, beta=1.0, cutoff_max=20.0, reject_max_omega=15.0)
+    gripper_filter = Scalar1DFilter(min_cutoff=1.0, beta=1.0, cutoff_max=20.0, reject_max_jump=3500.0)
     
     current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
     mode_prefix = "PB" if IS_PLAYBACK else "RT"
@@ -105,10 +108,15 @@ def main():
                     cv2.circle(color_img, (u_gr1, v_gr1), 8, (255, 255, 0), cv2.FILLED)                    
                     cv2.circle(color_img, (u_gr2, v_gr2), 8, (255, 255, 0), cv2.FILLED)     
                     
-                    dist_3d_mm = math.sqrt((GR2_3D[0] - GR1_3D[0])**2 + (GR2_3D[1] - GR1_3D[1])**2 + (GR2_3D[2] - GR1_3D[2])**2) * 1000
-                    status = "Close" if dist_3d_mm < thres else "Open"
-                    color = (0, 0, 255) if dist_3d_mm < thres else (0, 255, 0)
-                    cv2.putText(color_img, f"Gripper: {status}", (20, 90), 
+                    raw_dist_mm = math.sqrt((GR2_3D[0] - GR1_3D[0])**2 + (GR2_3D[1] - GR1_3D[1])**2 + (GR2_3D[2] - GR1_3D[2])**2) * 1000
+                    
+                    smoothed_dist_mm = gripper_filter.filter(raw_dist_mm, timestamp / 1000.0)
+                    if smoothed_dist_mm > thres_open:
+                        gripper_state = "Open"
+                    elif smoothed_dist_mm < thres_close:
+                        gripper_state = "Close"
+                    color = (0, 0, 255) if gripper_state == "Close" else (0, 255, 0)
+                    cv2.putText(color_img, f"Gripper: {gripper_state} - Dist: {smoothed_dist_mm:.2f} mm", (20, 90), 
                                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
                 
                 BASE1_3D = camera.extract_3d_coordinates(landmarks[BASE_INDEXES[0]][0], landmarks[BASE_INDEXES[0]][1], depth_frame, depth_arr)
@@ -168,7 +176,7 @@ def main():
                             frame_timestamp_s=timestamp / 1000.0,
                             raw_pos=raw_P_TCP_3D, filt_pos=P_TCP_3D,
                             raw_quat=raw_quat, filt_quat=quat,
-                            gripper_dist_mm=dist_3d_mm if GR1_3D and GR2_3D else None,
+                            gripper_dist_mm=smoothed_dist_mm if GR1_3D and GR2_3D else None,
                         )
                         
                 else:
@@ -180,6 +188,7 @@ def main():
                             cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
                 tcp_filter.reset()
                 quat_filter.reset()
+                gripper_filter.reset()
 
             color_img = draw_axes_legend(color_img)
 

@@ -1,0 +1,22 @@
+
+=== FILTER ANALYSIS ===
+File   : RT_20260713_100533.csv
+Frames : 1586
+FPS    : mean=60.6ms | std=13.4ms | max=101.0ms
+
+[POSITION LAG]
+  X: 0.0 ms
+  Y: 181.7 ms
+  Z: 121.1 ms
+
+[ORIENTATION LAG]
+  Lag: 0.0 ms
+
+[JITTER REDUCTION]
+  X  : raw=0.74mm | filt=0.14mm (-81%)
+  Y  : raw=0.44mm | filt=0.10mm (-78%)
+  Z  : raw=3.02mm | filt=0.61mm (-80%)
+  Ori: raw=1.48deg | filt=0.59deg (-60%)
+
+[KINEMATIC CHECK]
+  Max AngVel: 194 deg/s (Mean: 26.6 deg/s)
