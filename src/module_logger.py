@@ -15,7 +15,7 @@ class DataLogger:
         "filt_x", "filt_y", "filt_z",
         "raw_qw", "raw_qx", "raw_qy", "raw_qz",
         "filt_qw", "filt_qx", "filt_qy", "filt_qz",
-        "gripper_dist_mm",
+        "raw_gripper_dist_mm", "filt_gripper_dist_mm",
     ]
  
     def __init__(self, filepath="log.csv", out_dir="logs"):
@@ -28,7 +28,7 @@ class DataLogger:
         print(f"[LOGGER INFO] Logging into: {self.filepath}")
  
     def log(self, frame_timestamp_s, raw_pos=None, filt_pos=None,
-            raw_quat=None, filt_quat=None, gripper_dist_mm=None):
+            raw_quat=None, filt_quat=None, raw_gripper_dist=None, filt_gripper_dist=None):
         row = {
             "wall_time_s": round(time.time() - self._start_wall_time, 6),
             "frame_timestamp_s": frame_timestamp_s,
@@ -36,7 +36,7 @@ class DataLogger:
  
         row["raw_x"], row["raw_y"], row["raw_z"] = raw_pos if raw_pos else (None, None, None)
         row["filt_x"], row["filt_y"], row["filt_z"] = filt_pos if filt_pos else (None, None, None)
- 
+        
         if raw_quat is not None:
             row["raw_qw"], row["raw_qx"], row["raw_qy"], row["raw_qz"] = raw_quat
         else:
@@ -47,7 +47,9 @@ class DataLogger:
         else:
             row["filt_qw"] = row["filt_qx"] = row["filt_qy"] = row["filt_qz"] = None
  
-        row["gripper_dist_mm"] = gripper_dist_mm
+        
+        row["raw_gripper_dist_mm"] = raw_gripper_dist if raw_gripper_dist is not None else None
+        row["filt_gripper_dist_mm"] = filt_gripper_dist if filt_gripper_dist is not None else None
  
         self._writer.writerow(row)
  

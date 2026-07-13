@@ -78,6 +78,11 @@ def analyze(csv_path):
         for axis in ["x", "y", "z"]:
             lag = estimate_lag(t, df[f"raw_{axis}"], df[f"filt_{axis}"])
             log_print(f"  {axis.upper()}: {lag*1000:.1f} ms")
+        
+        # Gripper Lag
+        log_print("\n[ GRIPPER LAG ]")
+        lag_grip = estimate_lag(t, df["raw_gripper_dist_mm"], df["filt_gripper_dist_mm"])
+        log_print(f"  Dist: {lag_grip*1000:.1f} ms")
 
         # Orientation Lag
         log_print("\n[ORIENTATION LAG]")
@@ -93,12 +98,21 @@ def analyze(csv_path):
 
         # Jitter Reduction
         log_print("\n[JITTER REDUCTION]")
+        
+        # Position Jitter
         for axis in ["x", "y", "z"]:
             jr = np.abs(np.diff(df[f"raw_{axis}"])).mean() * 1000
             jf = np.abs(np.diff(df[f"filt_{axis}"])).mean() * 1000
             reduction = 100 * (1 - jf / jr) if jr > 0 else 0
             log_print(f"  {axis.upper()}  : raw={jr:.2f}mm | filt={jf:.2f}mm (-{reduction:.0f}%)")
 
+        # Gripper Jitter
+        jr_grip = np.std(np.diff(df["raw_gripper_dist_mm"]))
+        jf_grip = np.std(np.diff(df["filt_gripper_dist_mm"]))
+        reduction_grip = 100 * (1 - jf_grip / jr_grip) if jr_grip > 0 else 0
+        log_print(f"  Grip: raw={jr_grip:.2f}mm | filt={jf_grip:.2f}mm (-{reduction_grip:.0f}%)")
+
+        # Orientation Jitter
         dot_raw = np.clip(np.sum(raw_q[:-1] * raw_q[1:], axis=1), -1.0, 1.0)
         dot_filt = np.clip(np.sum(filt_q[:-1] * filt_q[1:], axis=1), -1.0, 1.0)
         step_raw = np.degrees(2 * np.arccos(np.abs(dot_raw)))
