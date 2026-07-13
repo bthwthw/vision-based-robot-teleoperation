@@ -1,10 +1,6 @@
 """
 Cách dùng nhanh (đứng độc lập):
     python module_plot.py logs/RT_xxx.csv
-
-Cách dùng trong code (main.py / analyze_log.py):
-    from module_plot import generate_report_figures
-    generate_report_figures("logs/RT_xxx.csv", out_dir="figs")
 """
 
 import os
@@ -38,6 +34,8 @@ def _fix_quaternion_continuity(q):
 
 def _load(csv_path):
     df = pd.read_csv(csv_path).dropna().reset_index(drop=True)
+    if df.empty or len(df) < 2:
+        return None
     t0 = df["frame_timestamp_s"].iloc[0]
     df["t"] = df["frame_timestamp_s"] - t0  # thời gian tương đối (giây), dễ đọc trục hoành hơn
 
@@ -161,6 +159,9 @@ def generate_report_figures(csv_path, out_dir="figs"):
         
     os.makedirs(out_dir, exist_ok=True)
     df = _load(csv_path)
+    if df is None:
+        print(f"[PLOT WARN] File {os.path.basename(csv_path)} has no valid data or is empty. Skipping plot generation.")
+        return
     base_name = os.path.splitext(os.path.basename(csv_path))[0]
 
     # Đã sửa định dạng tên file: Đưa base_name lên đầu
