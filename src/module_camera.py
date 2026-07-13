@@ -20,13 +20,19 @@ class RealSenseNode:
             self.config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, 30)
             self.profile = self.pipeline.start(self.config)
             print("[CAMERA INFO] Camera Node started in REAL-STREAM mode.")
+            
+            depth_sensor = self.profile.get_device().first_depth_sensor()
+            if depth_sensor.supports(rs.option.visual_preset):
+                depth_sensor.set_option(rs.option.visual_preset, int(rs.rs400_visual_preset.hand)) 
 
         self.aligner = rs.align(rs.stream.color)
         self.colorizer = rs.colorizer()
         
         self.intrinsics = self.profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
 
-        # Post-processing
+        self.decimation = rs.decimation_filter()
+        self.decimation.set_option(rs.option.filter_magnitude, 2)
+        self.hdr_merge = rs.hdr_merge()
         self.depth_to_disparity = rs.disparity_transform(True)
         self.spatial = rs.spatial_filter()
         self.spatial.set_option(rs.option.filter_magnitude, 2)
@@ -53,6 +59,10 @@ class RealSenseNode:
             return None, None, None, None
 
         filtered_depth = depth_frame
+        
+        # filtered_depth = self.decimation.process(filtered_depth)
+        filtered_depth = self.hdr_merge.process(filtered_depth)
+        
         filtered_depth = self.depth_to_disparity.process(filtered_depth)
         filtered_depth = self.spatial.process(filtered_depth)
         filtered_depth = self.temporal.process(filtered_depth)
@@ -81,7 +91,7 @@ class RealSenseNode:
         depth_colormap_rgb = np.asanyarray(self.colorizer.colorize(depth_frame).get_data())
         return cv2.cvtColor(depth_colormap_rgb, cv2.COLOR_RGB2BGR)
 
-    def extract_3d_coordinates(self, u, v, depth_frame, depth_array, radius=20):
+    def extract_3d_coordinates(self, u, v, depth_frame, depth_array, radius=8):
         h, w = depth_array.shape
         x_int, y_int = int(u), int(v)
         
