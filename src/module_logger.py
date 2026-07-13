@@ -25,7 +25,7 @@ class DataLogger:
         self._writer = csv.DictWriter(self._file, fieldnames=self.FIELDNAMES)
         self._writer.writeheader()
         self._start_wall_time = time.time()
-        print(f"[LOGGER INFO] Ghi log vào: {self.filepath}")
+        print(f"[LOGGER INFO] Logging into: {self.filepath}")
  
     def log(self, frame_timestamp_s, raw_pos=None, filt_pos=None,
             raw_quat=None, filt_quat=None, gripper_dist_mm=None):
@@ -53,4 +53,4 @@ class DataLogger:
  
     def close(self):
         self._file.close()
-        print(f"[LOGGER INFO] Đã đóng file log: {self.filepath}")
+        print(f"[LOGGER INFO] Clossing log: {self.filepath}")
