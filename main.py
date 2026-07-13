@@ -70,7 +70,7 @@ def main():
         
     camera = RealSenseNode(playback_file=playback_file)
     tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
-    tcp_filter = Position3DFilter(min_cutoff=1.0, beta=0.02, cutoff_max=15.0, reject_max_jump_mps=2.5)
+    tcp_filter = Position3DFilter(min_cutoff=5.0, beta=0, cutoff_max=15.0, reject_max_jump_mps=2.5)
     quat_filter = QuaternionFilter(min_cutoff=1.5, beta=1.0, cutoff_max=20.0, reject_max_omega=15.0)
     
     current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
