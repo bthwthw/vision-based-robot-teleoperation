@@ -58,11 +58,11 @@ def draw_axes_legend(image):
 def main():
     IS_PLAYBACK = False # True: playback from file, False: live stream from camera
     
-    TCP_INDEX = None
+    TCP_INDEX = 0
     GRIPPER_INDEXES = [4, 8]     
     BASE_INDEXES = [0,1,2,5] 
-    thres_open = 75.0   # (mm) open threshold
-    thres_close = 65.0  # (mm) close threshold
+    thres_open = 70.0   # (mm) open threshold
+    thres_close = 60.0  # (mm) close threshold
     gripper_state = "Open"
 
     if IS_PLAYBACK:
