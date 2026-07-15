@@ -122,12 +122,22 @@ def analyze(csv_path):
         reduction_ori = 100 * (1 - np.mean(step_filt) / mean_step_raw) if mean_step_raw > 0 else 0
         log_print(f"  Ori: raw={mean_step_raw:.2f}deg | filt={np.mean(step_filt):.2f}deg (-{reduction_ori:.0f}%)")
 
-        # Outlier Check
+        # Outlier / Kinematic Check
         omega_raw_deg_s = step_raw / dt_arr
+        omega_filt_deg_s = step_filt / dt_arr
+        
         log_print(f"\n[KINEMATIC CHECK]")
-        log_print(f"  Max AngVel: {np.max(omega_raw_deg_s):.0f} deg/s (Mean: {np.mean(omega_raw_deg_s):.1f} deg/s)")
+        log_print(f"  CAMERA INPUT (Raw) : Max = {np.max(omega_raw_deg_s):.0f} deg/s | Mean = {np.mean(omega_raw_deg_s):.1f} deg/s")
+        log_print(f"  ROBOT OUTPUT (Filt): Max = {np.max(omega_filt_deg_s):.0f} deg/s | Mean = {np.mean(omega_filt_deg_s):.1f} deg/s")
+        
         if np.max(omega_raw_deg_s) > 1000:
-            log_print(" [ANALYZER WARN] AngVel > 1000 deg/s. Possible outlier/misdetection.")
+            log_print("  [INFO] Camera captured massive spikes (>1000 deg/s).")
+            
+        if np.max(omega_filt_deg_s) > 1000:
+            log_print("  [WARNING] FATAL SPIKE LEAKED TO ROBOT! Slew Limiter failed or threshold is too high.")
+        else:
+            log_print("  [SUCCESS] All spikes were successfully blocked and saturated by the filter.")
+        
 
         # Export to TXT
         full_report = "\n".join(report_lines)
