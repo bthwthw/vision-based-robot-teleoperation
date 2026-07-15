@@ -5,20 +5,20 @@ from collections import deque
 class OutlierRejector:
     """
     max_jump_per_sec: (m/s) max speed threshold to reject 1-frame outlier
-        - Với position (m/s): tay người di chuyển nhanh hiếm khi vượt 2-3 m/s.
-        - Với góc (rad/s): cổ tay xoay nhanh hiếm khi vượt ~15 rad/s (~860 deg/s).
-    window: số mẫu lịch sử dùng để tính trung vị tham chiếu.
+    window: số mẫu lịch sử dùng để tính trung vị tham chiếu
+    max_rejects: Số lượng Suspect liên tiếp tối đa trước khi reset
     """
     def __init__(self, max_jump_per_sec, window=5, max_rejects=10):
         self.max_jump_per_sec = max_jump_per_sec
+        self.window_size = window
+        self.max_rejects = max_rejects
         self.history = deque(maxlen=window)
         self.t_prev = None
         self.reject_count = 0
-        self.max_rejects = 10
 
     def check(self, value, timestamp_s):
         """
-        value: scalar (for each axis) or for Quaternion
+        return: (filtered_value, is_suspect_flag) (for each axis) or for Quaternion
         """
         if self.t_prev is None or len(self.history) < 2:
             self.history.append(value)
@@ -41,7 +41,9 @@ class OutlierRejector:
                 self.t_prev = timestamp_s
                 self.reject_count = 0
                 return value, False
+            return self.history[-1], True
 
+        self.reject_count = 0
         self.history.append(value)
         self.t_prev = timestamp_s
         return value, False
@@ -68,6 +70,7 @@ class OneEuroFilter:
         self.d_cutoff = d_cutoff
         self.cutoff_max = cutoff_max
         self.x_prev = None
+        self.raw_x_prev = None 
         self.dx_prev = 0.0
         self.t_prev = None
  
@@ -79,6 +82,7 @@ class OneEuroFilter:
     def filter(self, x, timestamp_s):
         if self.t_prev is None:
             self.x_prev = x
+            self.raw_x_prev = x
             self.t_prev = timestamp_s
             return x
  
@@ -86,23 +90,23 @@ class OneEuroFilter:
         if dt <= 0:
             return self.x_prev
  
-        # Speed 
-        dx = (x - self.x_prev) / dt
+        dx = (x - self.raw_x_prev) / dt
         a_d = self._alpha(self.d_cutoff, dt)
         dx_hat = a_d * dx + (1 - a_d) * self.dx_prev
  
-        # Adaptive cutoff, clamp để tránh outlier "mở toang" filter
         cutoff = min(self.min_cutoff + self.beta * abs(dx_hat), self.cutoff_max)
         a = self._alpha(cutoff, dt)
         x_hat = a * x + (1 - a) * self.x_prev
  
         self.x_prev = x_hat
+        self.raw_x_prev = x
         self.dx_prev = dx_hat
         self.t_prev = timestamp_s
         return x_hat
  
     def reset(self):
         self.x_prev = None
+        self.raw_x_prev = None
         self.dx_prev = 0.0
         self.t_prev = None
  
@@ -120,9 +124,9 @@ class Scalar1DFilter:
             return None
             
         if self.rejector is not None:
-            checked_val, is_outlier = self.rejector.check(value, timestamp_s)
+            checked_val, is_suspect = self.rejector.check(value, timestamp_s)
             
-            if is_outlier:
+            if is_suspect:
                 if self.filter_1e.x_prev is not None:
                     return self.filter_1e.x_prev
                 return checked_val
@@ -135,6 +139,7 @@ class Scalar1DFilter:
         self.filter_1e.reset()
         if self.rejector is not None:
             self.rejector.reset()
+
  
 
 class Position3DFilter:
@@ -202,21 +207,16 @@ class QuaternionFilter:
         if dot < 0.0:
             q1 = -q1
             dot = -dot
- 
         dot = np.clip(dot, -1.0, 1.0)
- 
         if dot > 0.9995:
             result = q0 + t * (q1 - q0)
             return result / np.linalg.norm(result)
- 
         theta_0 = np.arccos(dot)
         theta = theta_0 * t
         sin_theta = np.sin(theta)
         sin_theta_0 = np.sin(theta_0)
- 
         s0 = np.cos(theta) - dot * sin_theta / sin_theta_0
         s1 = sin_theta / sin_theta_0
- 
         return s0 * q0 + s1 * q1
  
     def filter(self, quat_wxyz, timestamp_s):
@@ -227,27 +227,28 @@ class QuaternionFilter:
             self.q_prev = q
             self.t_prev = timestamp_s
             self.omega_prev = 0.0
+            self.reject_count = 0
             return q
  
         dt = timestamp_s - self.t_prev
         if dt <= 0:
             return self.q_prev
 
+        # Rate of Change Test cho Vận tốc góc
         omega_raw = self._angle_between(self.q_prev, q) / dt
 
         if self.reject_max_omega is not None and omega_raw > self.reject_max_omega:
             self.reject_count += 1
             if self.reject_count >= self.max_rejects:
-                # Cập nhật lại toàn bộ hệ quy chiếu do có thể tracker đã thay đổi mục tiêu theo dõi
                 self.q_prev = q
                 self.t_prev = timestamp_s
                 self.omega_prev = 0.0
                 self.reject_count = 0
                 return q
+            
             return self.q_prev
  
         self.reject_count = 0
-
         a_d = self._alpha(self.d_cutoff, dt)
         omega_hat = a_d * omega_raw + (1 - a_d) * self.omega_prev
  

@@ -1,0 +1,26 @@
+
+=== FILTER ANALYSIS ===
+File   : RT_20260715_094415.csv
+Frames : 530
+FPS    : mean=51.5ms | std=16.7ms | max=99.0ms
+
+[POSITION LAG]
+  X: 154.5 ms
+  Y: 154.5 ms
+  Z: 360.5 ms
+
+[ GRIPPER LAG ]
+  Dist: 0.0 ms
+
+[ORIENTATION LAG]
+  Lag: 0.0 ms
+
+[JITTER REDUCTION]
+  X  : raw=1.25mm | filt=0.95mm (-24%)
+  Y  : raw=0.87mm | filt=0.46mm (-48%)
+  Z  : raw=0.36mm | filt=0.10mm (-72%)
+  Grip: raw=13.26mm | filt=2.83mm (-79%)
+  Ori: raw=2.82deg | filt=1.17deg (-58%)
+
+[KINEMATIC CHECK]
+  Max AngVel: 997 deg/s (Mean: 60.6 deg/s)
