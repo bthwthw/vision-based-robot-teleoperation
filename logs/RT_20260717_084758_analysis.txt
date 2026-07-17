@@ -1,0 +1,29 @@
+
+=== FILTER ANALYSIS ===
+File   : RT_20260717_084758.csv
+Frames : 2322
+FPS    : mean=52.5ms | std=16.6ms | max=100.0ms
+
+[POSITION LAG]
+  X: 105.1 ms
+  Y: 105.1 ms
+  Z: 157.6 ms
+
+[ GRIPPER LAG ]
+  Dist: 105.1 ms
+
+[ORIENTATION LAG]
+  Lag: 0.0 ms
+
+[JITTER REDUCTION]
+  X  : raw=0.33mm | filt=0.08mm (-77%)
+  Y  : raw=0.52mm | filt=0.08mm (-85%)
+  Z  : raw=0.30mm | filt=0.06mm (-81%)
+  Grip: raw=6.70mm | filt=2.59mm (-61%)
+  Ori: raw=3.55deg | filt=0.88deg (-75%)
+
+[KINEMATIC CHECK]
+  CAMERA INPUT (Raw) : Max = 5455 deg/s | Mean = 78.8 deg/s
+  ROBOT OUTPUT (Filt): Max = 353 deg/s | Mean = 17.7 deg/s
+  [INFO] Camera captured massive spikes (>1000 deg/s).
+  [SUCCESS] All spikes were successfully blocked and saturated by the filter.
