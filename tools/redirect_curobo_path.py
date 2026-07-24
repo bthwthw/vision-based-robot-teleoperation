@@ -12,17 +12,10 @@ URDF_FILES = [
 ]
 
 ARM_MESH_DIR = "meshes_robot"
-GRIPPER_MESH_DIR = "meshes_gripper"  # doi khop ten thu muc ban dang dung
+GRIPPER_MESH_DIR = "meshes_gripper"  
 
-# Tu khoa de phan loai mesh TAY MAY (van dung heuristic vi path goc co
-# san "/collision/" va "/visual/" trong ten thu muc, da chay dung).
 ARM_KEYWORDS = ["irb1200", "abb"]
 
-# Bo mesh gripper ban tai (ROS-Industrial robotiq_2f_85_gripper_visualization)
-# dat ten HOAN TOAN KHAC bo mesh mentor dung trong URDF goc (kieu _fine/_coarse).
-# Vi vay phai map thu cong tung file, khong the doan theo pattern.
-# key = ten file GOC trong URDF (viet thuong het de so sanh khong phan biet hoa/thuong)
-# value = (subfolder, ten file THUC TE trong thu muc ban tai ve)
 GRIPPER_RENAME_MAP = {
     "robotiq_85_base_link_fine.stl":  ("visual",    "robotiq_arg2f_85_base_link.dae"),
     "robotiq_85_base_link_coarse.stl": ("collision", "robotiq_arg2f_85_base_link.stl"),
