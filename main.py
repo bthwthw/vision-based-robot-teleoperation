@@ -1,17 +1,19 @@
-from datetime import datetime
-import cv2
 import math
+from datetime import datetime
+
+import cv2
 import numpy as np
-import pyrealsense2 as rs 
+import pyrealsense2 as rs
 from scipy.spatial.transform import Rotation as R
 
 from src.module_camera import RealSenseNode
-from src.module_tracker import HandTrackerNode
-from src.module_hand import HandKinematics 
 from src.module_filter import Position3DFilter, QuaternionFilter, Scalar1DFilter
+from src.module_hand import HandKinematics
 from src.module_logger import DataLogger
+from src.module_tracker import HandTrackerNode
 from tools.analyze_filter import analyze
 from tools.plot_vision import generate_report_figures
+
 
 def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.015):
     try:
@@ -29,12 +31,12 @@ def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.015):
         cv2.line(image, p0, (int(uy), int(vy)), (0, 255, 0), 3) # Y - Lá
         cv2.line(image, p0, (int(uz), int(vz)), (255, 0, 0), 3) # Z - Lam
         cv2.line(image, p0, (int(ux), int(vx)), (0, 0, 255), 3) # X - Đỏ
-    except Exception as e:
+    except (RuntimeError, ValueError):
         pass
     return image
 
 def draw_axes_legend(image):
-    h, w, _ = image.shape
+    h, _w, _ = image.shape
     start_x = 20
     start_y = h - 120 
     
@@ -76,7 +78,7 @@ def main():
     quat_filter = QuaternionFilter(min_cutoff=1.5, beta=1.0, cutoff_max=20.0, reject_max_omega=15.08, max_rejects=30)
     gripper_filter = Scalar1DFilter(min_cutoff=1.0, beta=0.002, cutoff_max=10.0, reject_max_jump=3500.0, slew_limit_mps=4000)
     
-    current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    current_time_str = datetime.now().strftime("%Y%m%d_%H%M%S")  # noqa: DTZ005
     mode_prefix = "PB" if IS_PLAYBACK else "RT"
     log_filename = f"{mode_prefix}_{current_time_str}.csv"
     logger = DataLogger(log_filename)
@@ -199,13 +201,15 @@ def main():
                 scale = color_img.shape[1] / depth_colormap.shape[1]
                 depth_colormap = cv2.resize(depth_colormap, (color_img.shape[1], int(depth_colormap.shape[0] * scale)))
                 
-            combined_view = np.vstack((color_img, depth_colormap))
+            combined_view = np.vstack((color_img, depth_colormap))  # noqa: F841
             cv2.imshow("Teleoperation Pipeline", color_img)
 
             if cv2.waitKey(1) & 0xFF == 27:
                 break
 
-    except Exception as e:
+    except KeyboardInterrupt:
+        print("[MAIN INFO] Interrupted by user (KeyboardInterrupt)")
+    except (OSError, RuntimeError, ValueError) as e:
         print(f"[MAIN ERROR] {e}")
     finally:
         tracker.close()

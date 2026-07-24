@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as R
 
+
 class HandKinematics:
     """
     3d point to Quaternion and Euler.
@@ -24,7 +25,7 @@ class HandKinematics:
             return None
         z_axis = z_axis / norm_z
 
-        # 
+        
         v_2_0 = p2 - p0
         v_5_0 = p5 - p0
         temp_up = np.cross(v_2_0, v_5_0) 
@@ -61,6 +62,6 @@ class HandKinematics:
                 'rpy': euler_rpy
             }
             
-        except Exception as e:
+        except ValueError as e:
             print(f"[KINEMATICS WARNING] Rotation math error: {e}")
             return None
