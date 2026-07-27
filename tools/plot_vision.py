@@ -79,7 +79,7 @@ def plot_position_group(df, save_path):
     fig.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close(fig)
 
-def plot_orientation_group(df, save_path, reject_threshold_deg_s=860):
+def plot_orientation_group(df, save_path, reject_threshold_deg_s=286):
     """Hình 2: Phân tích Định hướng và Động học"""
     fig, axes = plt.subplots(2, 1, figsize=(10, 7), sharex=True)
     
