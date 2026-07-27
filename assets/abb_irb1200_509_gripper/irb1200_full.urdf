@@ -193,7 +193,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_base_link.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\robotiq_85_base_link_fine.STL" />
       </geometry>
       <material
         name="">
@@ -207,7 +207,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_base_link.stl" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\robotiq_85_base_link_coarse.STL" />
       </geometry>
     </collision>
   </link>
@@ -239,7 +239,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_outer_knuckle.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\outer_knuckle_fine.STL" />
       </geometry>
       <material
         name="">
@@ -253,7 +253,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_outer_knuckle.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\outer_knuckle_coarse.STL" />
       </geometry>
     </collision>
   </link>
@@ -297,7 +297,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_outer_finger.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\outer_finger_fine.STL" />
       </geometry>
       <material
         name="">
@@ -311,7 +311,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_outer_finger.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\outer_finger_coarse.STL" />
       </geometry>
     </collision>
   </link>
@@ -350,7 +350,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_inner_knuckle.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\inner_knuckle_fine.STL" />
       </geometry>
       <material
         name="">
@@ -364,7 +364,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_inner_knuckle.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\inner_knuckle_coarse.STL" />
       </geometry>
     </collision>
   </link>
@@ -412,7 +412,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_inner_finger.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\inner_finger_fine.STL" />
       </geometry>
       <material
         name="">
@@ -426,7 +426,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_inner_finger.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\inner_finger_coarse.STL" />
       </geometry>
     </collision>
   </link>
@@ -474,7 +474,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_inner_knuckle.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\inner_knuckle_fine.STL" />
       </geometry>
       <material
         name="">
@@ -488,7 +488,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_inner_knuckle.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\inner_knuckle_coarse.STL" />
       </geometry>
     </collision>
   </link>
@@ -536,7 +536,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_inner_finger.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\inner_finger_fine.STL" />
       </geometry>
       <material
         name="">
@@ -550,7 +550,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_inner_finger.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\inner_finger_coarse.STL" />
       </geometry>
     </collision>
   </link>
@@ -598,7 +598,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_outer_knuckle.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\outer_knuckle_fine.STL" />
       </geometry>
       <material
         name="">
@@ -612,7 +612,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_outer_knuckle.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\outer_knuckle_coarse.STL" />
       </geometry>
     </collision>
   </link>
@@ -660,7 +660,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/visual/robotiq_arg2f_85_outer_finger.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\outer_finger_fine.STL" />
       </geometry>
       <material
         name="">
@@ -674,7 +674,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="meshes_gripper/collision/robotiq_arg2f_85_outer_finger.dae" />
+          filename="assets\abb_irb1200_509_gripper\meshes_gripper\outer_finger_coarse.STL" />
       </geometry>
     </collision>
   </link>
