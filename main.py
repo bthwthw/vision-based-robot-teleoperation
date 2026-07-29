@@ -303,13 +303,16 @@ class TeleopSystem:
         hand_start_pos = None               
         hand_start_rot = None  
         last_q_solution = None
-        
-        # Ori 
-        R_map = R.from_matrix([
-            [ 0,  0,  1],
-            [-1,  0,  0],
+
+        core_mapping = [
+            [ 0,  0, -1],
+            [ 1,  0,  0],
             [ 0, -1,  0]
-        ])
+        ]
+        gain = 1.5
+
+        # Ori 
+        R_map = R.from_matrix(core_mapping)
         
         try:
             while self.is_running:
@@ -336,11 +339,7 @@ class TeleopSystem:
                 delta_hand_y = raw_hand_pos[1] - hand_start_pos[1]
                 delta_hand_z = raw_hand_pos[2] - hand_start_pos[2]
 
-                P_map = np.array([
-                    [ 0,  0,  1],
-                    [-1,  0,  0],
-                    [ 0, -1,  0], 
-                ]) * 0.8 
+                P_map = np.array(core_mapping) * gain
     
                 delta_hand = np.array([delta_hand_x, delta_hand_y, delta_hand_z])
                 robot_target_pos = (np.array(robot_base_pos) + P_map @ delta_hand).tolist()
