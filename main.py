@@ -62,13 +62,13 @@ def draw_axes_legend(image):
     cv2.putText(image, "Y", (start_x + 40, start_y + 60), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2, cv2.LINE_AA)
     
-    cv2.line(image, (start_x, start_y + 85), (start_x + 30, start_y + 85), (255, 0, 0), 3)
-    cv2.putText(image, "Z", (start_x + 40, start_y + 90), 
-                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2, cv2.LINE_AA)
-    
     cv2.line(image, (start_x, start_y + 25), (start_x + 30, start_y + 25), (0, 0, 255), 3)
     cv2.putText(image, "X", (start_x + 40, start_y + 30), 
                 cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
+
+    cv2.line(image, (start_x, start_y + 85), (start_x + 30, start_y + 85), (255, 0, 0), 3)
+    cv2.putText(image, "Z", (start_x + 40, start_y + 90), 
+                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0), 2, cv2.LINE_AA)
     
     return image
 
@@ -133,10 +133,10 @@ class TeleopSystem:
         print("[Perception] Initializing...")
         
         TCP_INDEX = 0
-        GRIPPER_INDEXES = [4, 8]     
-        BASE_INDEXES = [0,1,2,5] 
-        thres_open = 70.0   # (mm) open threshold
-        thres_close = 60.0  # (mm) close threshold
+        GRIPPER_INDEXES = [3, 5]     
+        BASE_INDEXES = [5,0,9,13] 
+        thres_open = 45.0   # (mm) open threshold
+        thres_close = 35.0  # (mm) close threshold
         gripper_state = "Open"
         
         camera = RealSenseNode(playback_file=self.playback_file)
@@ -211,6 +211,7 @@ class TeleopSystem:
                             cv2.putText(color_img, f"TCP: X:{P_TCP_3D[0]:.3f} Y:{P_TCP_3D[1]:.3f} Z:{P_TCP_3D[2]:.3f} m", (20, 50), 
                                         cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
 
+                        # compute_orientation(P0, Px1, Px2, P3, handedness="Left"):
                         orientation_data = HandKinematics.compute_orientation(BASE1_3D, BASE2_3D, BASE3_3D, BASE4_3D, handedness=handedness)
                         if orientation_data:
                             raw_quat = orientation_data['quaternion']
