@@ -44,8 +44,8 @@ def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.015):
         uz, vz = rs.rs2_project_point_to_pixel(intrinsics, z_3d.tolist())
         
         cv2.line(image, p0, (int(uy), int(vy)), (0, 255, 0), 3) # Y - Lá
-        cv2.line(image, p0, (int(uz), int(vz)), (255, 0, 0), 3) # Z - Lam
         cv2.line(image, p0, (int(ux), int(vx)), (0, 0, 255), 3) # X - Đỏ
+        cv2.line(image, p0, (int(uz), int(vz)), (255, 0, 0), 3) # Z - Lam
     except (RuntimeError, ValueError):
         pass
     return image
@@ -299,7 +299,7 @@ class TeleopSystem:
         robot_base_pos = retract_fk.ee_position[0].cpu().numpy().tolist()
         robot_base_quat_wxyz = retract_fk.ee_quaternion[0].cpu().numpy().tolist()
         
-        print(f"[Controller] TCP Gốc: Pos={[round(float(p), 3) for p in robot_base_pos]}")
+        print(f"[Controller] TCP init: Pos={[round(float(p), 3) for p in robot_base_pos]}, Quat={[round(float(q), 3) for q in robot_base_quat_wxyz]}")
         
         hand_start_pos = None               
         hand_start_rot = None  
@@ -334,7 +334,7 @@ class TeleopSystem:
                 if hand_start_pos is None:
                     hand_start_pos = [raw_hand_pos[0], raw_hand_pos[1], raw_hand_pos[2]]
                     hand_start_rot = current_hand_rot
-                    print(f"[Controller] Đã khóa Pose gốc của Tay thành công tại: {hand_start_pos}")
+                    print(f"[Controller] Hand start pose: Pos={hand_start_pos}, Quat={hand_start_rot.as_quat()}")
                 
                 delta_hand_x = raw_hand_pos[0] - hand_start_pos[0]
                 delta_hand_y = raw_hand_pos[1] - hand_start_pos[1]
@@ -387,7 +387,7 @@ class TeleopSystem:
                     last_q_solution = torch.tensor(q_solution[:6], dtype=torch.float32, device=tensor_args.device)
                     
                 else:
-                    print(f"[Controller-IK-FAIL] Không tìm được hướng Pose phù hợp cho đích: {[round(float(p), 3) for p in robot_target_pos]}")
+                    print(f"[Controller-IK-FAIL] Cannot find valid joint configuration for target position: {[round(float(p), 3) for p in robot_target_pos]}")
                     last_joints, _ = self.shared_joints.read()
                     if last_joints is not None and len(last_joints) >= 7:
                         final_joints = last_joints[:6] + [gripper_opening]
