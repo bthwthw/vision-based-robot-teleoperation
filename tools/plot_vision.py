@@ -33,7 +33,7 @@ def _fix_quaternion_continuity(q):
 
 
 def _load(csv_path):
-    df = pd.read_csv(csv_path).dropna().reset_index(drop=True)
+    df = pd.read_csv(csv_path).dropna(subset=["raw_x", "filt_x", "raw_qw", "filt_qw"]).reset_index(drop=True)
     if df.empty or len(df) < 2:
         return None
     t0 = df["frame_timestamp_s"].iloc[0]
@@ -174,11 +174,8 @@ def generate_report_figures(csv_path, out_dir="figs"):
     path_bar = os.path.join(out_dir, f"{base_name}_fig3_performance.png")
     plot_evaluation_bar(df, path_bar)
 
-    print(f"\n[PLOT INFO] Đã xuất thành công 3 ảnh báo cáo (300 DPI) tại thư mục: {out_dir}/")
-    print(f"  -> {os.path.basename(path_pos)}")
-    print(f"  -> {os.path.basename(path_ori)}")
-    print(f"  -> {os.path.basename(path_bar)}")
+    print(f"\n[VISION PLOT INFO] 3 figs saved at: {out_dir}/")
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else "logs/RT_20260710_112511.csv"
+    path = sys.argv[1] if len(sys.argv) > 1 else "logs\RT_20260729_132013.csv"
     generate_report_figures(path)

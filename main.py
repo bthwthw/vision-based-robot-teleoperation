@@ -28,6 +28,8 @@ from src.module_logger import DataLogger
 from src.module_tracker import HandTrackerNode
 from tools.analyze_filter import analyze
 from tools.plot_vision import generate_report_figures
+from tools.analyze_control import analyze_control
+from tools.plot_control import generate_control_figures
 
 
 def draw_3d_axes(image, intrinsics, origin_3d, rot_matrix, axis_length=0.015):
@@ -128,6 +130,10 @@ class TeleopSystem:
 
         self.playback_file = playback_file
         self.logger_filepath = None
+        
+        self.robot_id = None
+        self.arm_indices = []
+        self.tcp_link_idx = 6
 
     def _perception_thread(self):
         print("[Perception] Initializing...")
@@ -311,14 +317,12 @@ class TeleopSystem:
             [ 0,  0,  -1]
         ]
         gain = 1.5
-
-        # Ori 
         R_map = R.from_matrix(core_mapping)
+        P_map = np.array(core_mapping) * gain
         
         try:
             while self.is_running:
                 pose_dict, ts = self.shared_pose.read()
-                
                 if pose_dict is None or pose_dict["position"] is None:
                     time.sleep(0.005)
                     continue 
@@ -328,7 +332,6 @@ class TeleopSystem:
                 
                 quat_wxyz = pose_dict["quaternion"]
                 quat_wxyz = quat_wxyz.tolist() if isinstance(quat_wxyz, np.ndarray) else list(quat_wxyz)
-                # Chuyển đổi quaternion sang thư viện Scipy (định dạng xyzw)
                 current_hand_rot = R.from_quat([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
                 
                 if hand_start_pos is None:
@@ -336,24 +339,19 @@ class TeleopSystem:
                     hand_start_rot = current_hand_rot
                     print(f"[Controller] Hand start pose: Pos={hand_start_pos}, Quat={hand_start_rot.as_quat()}")
                 
-                delta_hand_x = raw_hand_pos[0] - hand_start_pos[0]
-                delta_hand_y = raw_hand_pos[1] - hand_start_pos[1]
-                delta_hand_z = raw_hand_pos[2] - hand_start_pos[2]
-
-                P_map = np.array(core_mapping) * gain
-    
-                delta_hand = np.array([delta_hand_x, delta_hand_y, delta_hand_z])
-                robot_target_pos = (np.array(robot_base_pos) + P_map @ delta_hand).tolist()
+                delta_hand_cam = np.array([
+                    raw_hand_pos[0] - hand_start_pos[0],
+                    raw_hand_pos[1] - hand_start_pos[1],
+                    raw_hand_pos[2] - hand_start_pos[2]
+                ])
+                
+                delta_robot = P_map @ delta_hand_cam
+                robot_target_pos = [robot_base_pos[0] + delta_robot[0], robot_base_pos[1] + delta_robot[1], robot_base_pos[2] + delta_robot[2]]
                 
                 delta_rot_cam = current_hand_rot * hand_start_rot.inv()
                 delta_rot_rob = R_map * delta_rot_cam * R_map.inv()
                 
-                robot_start_rot = R.from_quat([
-                    robot_base_quat_wxyz[1], 
-                    robot_base_quat_wxyz[2], 
-                    robot_base_quat_wxyz[3], 
-                    robot_base_quat_wxyz[0]
-                ])
+                robot_start_rot = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
                 robot_target_rot = delta_rot_rob * robot_start_rot
                 
                 target_quat_xyzw = robot_target_rot.as_quat()
@@ -368,31 +366,55 @@ class TeleopSystem:
                 if last_q_solution is not None:
                     seed_config = last_q_solution.view(1, 1, -1).repeat(1, ik_config.num_seeds, 1)
 
+                # --- ĐO LATENCY CUROBO ---
+                t_start = time.time()
                 result = ik_solver.solve_batch(goal, seed_config=seed_config)
+                curobo_latency_ms = (time.time() - t_start) * 1000.0
                 
                 gripper_opening = 0.725 if pose_dict["gripper"] == "Close" else 0.0
                 is_success = bool(result.success[0].item()) if hasattr(result.success[0], "item") else bool(result.success[0])
                 
+                q_logged = [0.0] * 6
                 if is_success:
                     q_solution = result.solution[0]
-                    if hasattr(q_solution, "cpu"):
-                        q_solution = q_solution.cpu().numpy()
+                    if hasattr(q_solution, "cpu"): q_solution = q_solution.cpu().numpy()
                     q_solution = np.atleast_1d(q_solution).flatten().tolist()
-                    
                     print(f"[Controller-IK-OK] Joints (cuRobo): {[round(float(j), 3) for j in q_solution[:6]]}")
+                    q_logged = q_solution[:6]
                     
-                    final_joints = q_solution[:6] + [gripper_opening]
-                    self.shared_joints.write(final_joints, time.time())
-
+                    self.shared_joints.write(q_solution[:6] + [gripper_opening], time.time())
                     last_q_solution = torch.tensor(q_solution[:6], dtype=torch.float32, device=tensor_args.device)
-                    
                 else:
                     print(f"[Controller-IK-FAIL] Cannot find valid joint configuration for target position: {[round(float(p), 3) for p in robot_target_pos]}")
                     last_joints, _ = self.shared_joints.read()
                     if last_joints is not None and len(last_joints) >= 7:
-                        final_joints = last_joints[:6] + [gripper_opening]
-                        self.shared_joints.write(final_joints, time.time())
+                        q_logged = last_joints[:6]
+                        self.shared_joints.write(last_joints[:6] + [gripper_opening], time.time())
                 
+                # --- ĐỌC STATE THỰC TẾ TỪ PYBULLET ĐỂ ĐẨY VÀO QUEUE ---
+                pb_pos_logged, pb_quat_logged = [0.0]*3, [1.0, 0.0, 0.0, 0.0]
+                pb_q_logged = [0.0]*6
+                
+                if self.robot_id is not None and p.isConnected():
+                    try:
+                        link_state = p.getLinkState(self.robot_id, self.tcp_link_idx, computeForwardKinematics=True)
+                        pb_pos_logged = list(link_state[4])  # worldLinkFramePosition
+                        # Chuyển đổi xyzw của PyBullet về wxyz
+                        xyzw = link_state[5]
+                        pb_quat_logged = [xyzw[3], xyzw[0], xyzw[1], xyzw[2]]
+                        
+                        pb_q_logged = [p.getJointState(self.robot_id, idx)[0] for idx in self.arm_indices]
+                    except p.error:
+                        pass
+                
+                # Đóng gói đưa vào luồng ghi log độc lập
+                ctrl_log = {
+                    "frame_timestamp_s": ts, "curobo_time_ms": curobo_latency_ms, "ik_success": 1 if is_success else 0,
+                    "tgt_tcp_pos": robot_target_pos, "tgt_tcp_quat": robot_target_quat,
+                    "pb_tcp_pos": pb_pos_logged, "pb_tcp_quat": pb_quat_logged,
+                    "q_tgt": q_logged, "pb_q": pb_q_logged
+                }
+                self.log_queue.put(ctrl_log)
                 time.sleep(0.01)
                 
         finally:
@@ -406,18 +428,19 @@ class TeleopSystem:
         p.loadURDF("plane.urdf")
 
         urdf_path = str(Path("assets/abb_irb1200_509_gripper/irb1200_full.urdf").resolve())
-        robot_id = p.loadURDF(urdf_path, basePosition=[0, 0, 0], useFixedBase=True)
+        # Lưu vào thuộc tính lớp để luồng Controller đọc dữ liệu trực quan
+        self.robot_id = p.loadURDF(urdf_path, basePosition=[0, 0, 0], useFixedBase=True)
 
         name_to_index = {}
-        for i in range(p.getNumJoints(robot_id)):
-            info = p.getJointInfo(robot_id, i)
+        for i in range(p.getNumJoints(self.robot_id)):
+            info = p.getJointInfo(self.robot_id, i)
             name_to_index[info[1].decode("utf-8")] = i
 
         for idx in range(9, 17):
-            p.changeDynamics(robot_id, idx, jointLowerLimit=-3.14, jointUpperLimit=3.14)
+            p.changeDynamics(self.robot_id, idx, jointLowerLimit=-3.14, jointUpperLimit=3.14)
 
         arm_joint_names = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
-        arm_indices = [name_to_index[name] for name in arm_joint_names if name in name_to_index]
+        self.arm_indices = [name_to_index[name] for name in arm_joint_names if name in name_to_index]
         
         master_idx = name_to_index["finger_joint"]
         gripper_mimic_relations = {
@@ -438,19 +461,16 @@ class TeleopSystem:
                     arm_targets = joints[:6]
                     gripper_target = joints[6]
 
-                    for idx, target in zip(arm_indices, arm_targets):
-                        p.setJointMotorControl2(robot_id, idx, p.POSITION_CONTROL, targetPosition=target, force=500, maxVelocity=5.0)
-                    
-                    current_pybullet_angles = [p.getJointState(robot_id, idx)[0] for idx in arm_indices]
+                    for idx, target in zip(self.arm_indices, arm_targets):
+                        p.setJointMotorControl2(self.robot_id, idx, p.POSITION_CONTROL, targetPosition=target, force=500, maxVelocity=5.0)
+                    current_pybullet_angles = [p.getJointState(self.robot_id, idx)[0] for idx in self.arm_indices]
                     print(f"[PyBullet-EXEC] Target: {[round(t, 2) for t in arm_targets]} | Thực tế mô phỏng: {[round(a, 2) for a in current_pybullet_angles]}")
-
-                    p.setJointMotorControl2(robot_id, master_idx, p.POSITION_CONTROL, targetPosition=gripper_target, force=200, maxVelocity=5.0)
+                    p.setJointMotorControl2(self.robot_id, master_idx, p.POSITION_CONTROL, targetPosition=gripper_target, force=200, maxVelocity=5.0)
 
                     for joint_name, multiplier in gripper_mimic_relations.items():
                         if joint_name in name_to_index:
                             slave_idx = name_to_index[joint_name]
-                            target = multiplier * gripper_target
-                            p.setJointMotorControl2(robot_id, slave_idx, p.POSITION_CONTROL, targetPosition=target, force=200)
+                            p.setJointMotorControl2(self.robot_id, slave_idx, p.POSITION_CONTROL, targetPosition=multiplier * gripper_target, force=200)
 
                 p.stepSimulation()
                 time.sleep(1.0 / 240.0)
@@ -490,16 +510,17 @@ class TeleopSystem:
             t.start()
 
     def stop_all(self):
-        print("[System] Closing ...")
-        self.is_running = False
-        for t in self.threads:
-            t.join() 
-        print("[System] All threads stopped.")
-        
-        if self.logger_filepath:
-            print("[System] Analyzing log data...")
-            analyze(self.logger_filepath)        
-            generate_report_figures(self.logger_filepath, out_dir="figs")
+            print("[System] Closing ...")
+            self.is_running = False
+            for t in self.threads: t.join() 
+            print("[System] All threads stopped.")
+            
+            if self.logger_filepath:
+                print("[System] Analyzing log data...")
+                analyze(self.logger_filepath)        
+                generate_report_figures(self.logger_filepath, out_dir="figs")
+                analyze_control(self.logger_filepath)
+                generate_control_figures(self.logger_filepath, out_dir="figs")
 
 
 def main():

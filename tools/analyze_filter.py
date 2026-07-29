@@ -47,13 +47,13 @@ def analyze(csv_path):
     Analyze the CSV data, print to console, and export a sidecar text report.
     """
     if not os.path.exists(csv_path):
-        print(f"[ANALYZER ERROR] File not found: {csv_path}")
+        print(f"[FILTER ANALYZER ERROR] File not found: {csv_path}")
         return
 
     try:
-        df = pd.read_csv(csv_path).dropna()
+        df = pd.read_csv(csv_path).dropna(subset=["raw_x", "filt_x", "raw_qw", "filt_qw", "raw_gripper_dist_mm"]).reset_index(drop=True)
         if len(df) < 10:
-            print("[ANALYZER WARN] < 10 frames. Skipping analysis.")
+            print("[FILTER ANALYZER WARN] < 10 frames. Skipping analysis.")
             return
 
         t = df["frame_timestamp_s"].to_numpy()
@@ -71,7 +71,7 @@ def analyze(csv_path):
         log_print(f"FPS    : mean={np.mean(dt_arr)*1000:.1f}ms | std={np.std(dt_arr)*1000:.1f}ms | max={np.max(dt_arr)*1000:.1f}ms")
         
         if np.max(dt_arr) > 3 * np.mean(dt_arr):
-            log_print("[ANALYZER WARN] High frame time variance detected. Metrics may be degraded.")
+            log_print("[FILTER ANALYZER WARN] High frame time variance detected. Metrics may be degraded.")
             
         # Position Lag
         log_print("\n[POSITION LAG]")
@@ -145,11 +145,11 @@ def analyze(csv_path):
         with open(txt_path, "w", encoding="utf-8") as f:
             f.write(full_report)
             
-        print(f"\n[ANALYZER INFO] Saved analysis to: {txt_path}\n")
+        print(f"\n[FILTER ANALYZER INFO] Saved at: {txt_path}\n")
         
     except Exception as e:
-        print(f"[ANALYZER ERROR] Analysis failed: {e}\n")
+        print(f"[FILTER ANALYZER ERROR] Analysis failed: {e}\n")
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else "logs/session1.csv"
+    path = sys.argv[1] if len(sys.argv) > 1 else "logs\RT_20260729_132013.csv"
     analyze(path)
