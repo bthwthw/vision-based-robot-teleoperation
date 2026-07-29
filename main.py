@@ -133,7 +133,7 @@ class TeleopSystem:
         
         self.robot_id = None
         self.arm_indices = []
-        self.tcp_link_idx = 6
+        self.tcp_link_idx = 8
 
     def _perception_thread(self):
         print("[Perception] Initializing...")
@@ -435,19 +435,7 @@ class TeleopSystem:
         for i in range(p.getNumJoints(self.robot_id)):
             info = p.getJointInfo(self.robot_id, i)
             name_to_index[info[1].decode("utf-8")] = i
-
-        self.tcp_link_idx = name_to_index.get("joint_6", 6) 
-        priority_keywords = ["tcp", "grasp", "tool0", "center", "robotiq_base", "flange"]
-        
-        found_tcp = False
-        for keyword in priority_keywords:
-            for name, idx in name_to_index.items():
-                if keyword in name.lower():
-                    self.tcp_link_idx = idx
-                    found_tcp = True
-                    break # Tìm ra ưu tiên cao thì thoát vòng lặp nhỏ
-            if found_tcp:
-                break
+        self.tcp_link_idx = name_to_index.get("robotiq_tcp_joint", 8)
                 
         print(f"[Communication] TCP - Link ID={self.tcp_link_idx} ({[k for k,v in name_to_index.items() if v==self.tcp_link_idx]})")
 
