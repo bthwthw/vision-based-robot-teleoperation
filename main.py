@@ -137,21 +137,19 @@ class TeleopSystem:
 
         self.system_ready = False
         self.teleop_active = False
-        self.request_set_pose = False
+        self.request_toggle_teleop = False
         
         self.btn_rect = (0, 0, 0, 0) # (x1, y1, x2, y2)
 
-    def trigger_set_pose(self):
+    def trigger_toggle_teleop(self):
         if self.system_ready:
-            self.request_set_pose = True
-            self.teleop_active = True
-            print("[SYSTEM] Set pose done")
+            self.request_toggle_teleop = True
 
     def handle_mouse_click(self, event, x, y, flags, param):
         if event == cv2.EVENT_LBUTTONDOWN:
             x1, y1, x2, y2 = self.btn_rect
             if x1 <= x <= x2 and y1 <= y <= y2:
-                self.trigger_set_pose()
+                self.trigger_toggle_teleop()
 
     def _perception_thread(self):
         print("[Perception] Initializing...")
@@ -340,6 +338,10 @@ class TeleopSystem:
         hand_start_rot = None  
         last_q_solution = None
 
+        robot_start_rot = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
+        last_robot_target_pos = robot_base_pos
+        last_robot_target_rot = robot_start_rot
+
         core_mapping = [
             [ 0, -1,  0],
             [ -1,  0,  0],
@@ -356,7 +358,28 @@ class TeleopSystem:
                     time.sleep(0.005)
                     continue 
 
+                if self.request_toggle_teleop:
+                    self.teleop_active = not self.teleop_active
+                    self.request_toggle_teleop = False
+
+                    if self.teleop_active:
+                        raw_hand_pos = pose_dict["position"]
+                        hand_start_pos = (raw_hand_pos.tolist() if isinstance(raw_hand_pos, np.ndarray) else list(raw_hand_pos))[:3]
+                        
+                        quat_wxyz = pose_dict["quaternion"]
+                        hand_start_rot = R.from_quat([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
+                        
+                        robot_base_pos = last_robot_target_pos
+                        robot_start_rot = last_robot_target_rot
+                        print(f"[Controller] -> START CONTROL")
+                    else:
+                        print("[Controller] -> STOP CONTROL")
+
                 if not self.teleop_active:
+                    if last_q_solution is not None:
+                        gripper_opening = 0.725 if pose_dict["gripper"] == "Close" else 0.0
+                        q_log = last_q_solution.cpu().numpy().flatten().tolist()[:6]
+                        self.shared_joints.write(q_log + [gripper_opening], time.time())
                     time.sleep(0.01)
                     continue
                 
@@ -366,12 +389,6 @@ class TeleopSystem:
                 quat_wxyz = pose_dict["quaternion"]
                 quat_wxyz = quat_wxyz.tolist() if isinstance(quat_wxyz, np.ndarray) else list(quat_wxyz)
                 current_hand_rot = R.from_quat([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
-                
-                if hand_start_pos is None or self.request_set_pose:
-                    hand_start_pos = [raw_hand_pos[0], raw_hand_pos[1], raw_hand_pos[2]]
-                    hand_start_rot = current_hand_rot
-                    self.request_set_pose = False
-                    print(f"[Controller] Hand start pose: Pos={hand_start_pos}, Quat={hand_start_rot.as_quat()}")
                 
                 delta_hand_cam = np.array([
                     raw_hand_pos[0] - hand_start_pos[0],
@@ -390,6 +407,9 @@ class TeleopSystem:
                 
                 target_quat_xyzw = robot_target_rot.as_quat()
                 robot_target_quat = [target_quat_xyzw[3], target_quat_xyzw[0], target_quat_xyzw[1], target_quat_xyzw[2]]
+
+                last_robot_target_pos = robot_target_pos
+                last_robot_target_rot = robot_target_rot
                 
                 goal_pos_tensor = torch.tensor([robot_target_pos], dtype=torch.float32, device=tensor_args.device)
                 goal_quat_tensor = torch.tensor([robot_target_quat], dtype=torch.float32, device=tensor_args.device)
@@ -580,7 +600,7 @@ def main():
                     # Warm-up
                     cv2.rectangle(display_frame, (x1, y1), (x2, y2), (100, 100, 100), cv2.FILLED)
                     cv2.putText(display_frame, "INITIALIZING...", (x1 + 15, y1 + 32), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
                 else:
                     if not system.teleop_active:
                         # wait for set pose 
@@ -589,17 +609,17 @@ def main():
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
                     else:
                         # running -> reset? 
-                        cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 140, 255), cv2.FILLED)
-                        cv2.putText(display_frame, "RESET POSE", (x1 + 30, y1 + 32), 
+                        cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 0, 220), cv2.FILLED)
+                        cv2.putText(display_frame, "STOP TELEOP", (x1 + 30, y1 + 32), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
                 cv2.imshow(win_name, display_frame)
                 
             key = cv2.waitKey(33) & 0xFF
-            if key == 27: # Phím ESC để thoát
+            if key == 27: # ESC
                 break
-            elif key == 32: # Phím SPACE để kích hoạt nhanh
-                system.trigger_set_pose()
+            elif key == 32: #SPACE
+                system.trigger_toggle_teleop()
                 
     except KeyboardInterrupt:
         print("[SYSTEM] KeyboardInterrupt")
