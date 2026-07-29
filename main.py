@@ -305,9 +305,9 @@ class TeleopSystem:
         last_q_solution = None
 
         core_mapping = [
-            [ 0,  0, -1],
-            [ 1,  0,  0],
-            [ 0, -1,  0]
+            [ 0, -1,  0],
+            [ -1,  0,  0],
+            [ 0,  0,  -1]
         ]
         gain = 1.5
 
