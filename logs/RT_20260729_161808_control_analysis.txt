@@ -1,0 +1,25 @@
+
+=== CUROBO & PYBULLET CONTROL ANALYSIS ===
+File   : RT_20260729_161808.csv
+
+[IK SOLVER PERFORMANCE]
+  IK Solvability Rate: 100.0%
+  cuRobo GPU Latency: mean=44.07ms | max=179.48ms | std=25.27ms
+
+[POSITION TRACKING ERROR (Tgt vs PyBullet Actual)]
+  Max Euclidean Error : 106.21 mm
+  Mean Euclidean Error: 12.21 mm
+  Std Euclidean Error : 20.44 mm
+
+[ORIENTATION TRACKING ERROR]
+  Mean Orientation Error: 3.75 deg
+  Max Orientation Error : 25.32 deg
+
+[JOINT KINEMATIC CHECK (PyBullet Feedback)]
+  Joint 1 Max Velocity: 0.71 rad/s
+  Joint 2 Max Velocity: 0.59 rad/s
+  Joint 3 Max Velocity: 1.36 rad/s
+  Joint 4 Max Velocity: 2.53 rad/s
+  Joint 5 Max Velocity: 1.87 rad/s
+  Joint 6 Max Velocity: 2.53 rad/s
+  [SUCCESS] Omega okay
