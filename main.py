@@ -135,6 +135,24 @@ class TeleopSystem:
         self.arm_indices = []
         self.tcp_link_idx = 8
 
+        self.system_ready = False
+        self.teleop_active = False
+        self.request_set_pose = False
+        
+        self.btn_rect = (0, 0, 0, 0) # (x1, y1, x2, y2)
+
+    def trigger_set_pose(self):
+        if self.system_ready:
+            self.request_set_pose = True
+            self.teleop_active = True
+            print("[SYSTEM] Set pose done")
+
+    def handle_mouse_click(self, event, x, y, flags, param):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            x1, y1, x2, y2 = self.btn_rect
+            if x1 <= x <= x2 and y1 <= y <= y2:
+                self.trigger_set_pose()
+
     def _perception_thread(self):
         print("[Perception] Initializing...")
         
@@ -306,7 +324,18 @@ class TeleopSystem:
         robot_base_quat_wxyz = retract_fk.ee_quaternion[0].cpu().numpy().tolist()
         
         print(f"[Controller] TCP init: Pos={[round(float(p), 3) for p in robot_base_pos]}, Quat={[round(float(q), 3) for q in robot_base_quat_wxyz]}")
+
+        print("[Controller] cuRobo Warm-up...")
+        dummy_pos = torch.tensor([robot_base_pos], dtype=torch.float32, device=tensor_args.device)
+        dummy_quat = torch.tensor([robot_base_quat_wxyz], dtype=torch.float32, device=tensor_args.device)
+        dummy_goal = Pose(dummy_pos, dummy_quat)
         
+        for _ in range(10): 
+            ik_solver.solve_batch(dummy_goal)
+        
+        print("[Controller] cuRobo Warm-up done")
+        self.system_ready = True
+
         hand_start_pos = None               
         hand_start_rot = None  
         last_q_solution = None
@@ -326,6 +355,10 @@ class TeleopSystem:
                 if pose_dict is None or pose_dict["position"] is None:
                     time.sleep(0.005)
                     continue 
+
+                if not self.teleop_active:
+                    time.sleep(0.01)
+                    continue
                 
                 raw_hand_pos = pose_dict["position"]
                 raw_hand_pos = raw_hand_pos.tolist() if isinstance(raw_hand_pos, np.ndarray) else list(raw_hand_pos)
@@ -334,9 +367,10 @@ class TeleopSystem:
                 quat_wxyz = quat_wxyz.tolist() if isinstance(quat_wxyz, np.ndarray) else list(quat_wxyz)
                 current_hand_rot = R.from_quat([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
                 
-                if hand_start_pos is None:
+                if hand_start_pos is None or self.request_set_pose:
                     hand_start_pos = [raw_hand_pos[0], raw_hand_pos[1], raw_hand_pos[2]]
                     hand_start_rot = current_hand_rot
+                    self.request_set_pose = False
                     print(f"[Controller] Hand start pose: Pos={hand_start_pos}, Quat={hand_start_rot.as_quat()}")
                 
                 delta_hand_cam = np.array([
@@ -366,7 +400,6 @@ class TeleopSystem:
                 if last_q_solution is not None:
                     seed_config = last_q_solution.view(1, 1, -1).repeat(1, ik_config.num_seeds, 1)
 
-                # --- ĐO LATENCY CUROBO ---
                 t_start = time.time()
                 result = ik_solver.solve_batch(goal, seed_config=seed_config)
                 curobo_latency_ms = (time.time() - t_start) * 1000.0
@@ -391,7 +424,6 @@ class TeleopSystem:
                         q_logged = last_joints[:6]
                         self.shared_joints.write(last_joints[:6] + [gripper_opening], time.time())
                 
-                # --- ĐỌC STATE THỰC TẾ TỪ PYBULLET ĐỂ ĐẨY VÀO QUEUE ---
                 pb_pos_logged, pb_quat_logged = [0.0]*3, [1.0, 0.0, 0.0, 0.0]
                 pb_q_logged = [0.0]*6
                 
@@ -407,7 +439,6 @@ class TeleopSystem:
                     except p.error:
                         pass
                 
-                # Đóng gói đưa vào luồng ghi log độc lập
                 ctrl_log = {
                     "frame_timestamp_s": ts, "curobo_time_ms": curobo_latency_ms, "ik_success": 1 if is_success else 0,
                     "tgt_tcp_pos": robot_target_pos, "tgt_tcp_quat": robot_target_quat,
@@ -527,19 +558,48 @@ class TeleopSystem:
 
 
 def main():
-    system = TeleopSystem(playback_file=None )
+    system = TeleopSystem(playback_file=None)
     system.start_all()
     
-    cv2.namedWindow("Teleoperation Pipeline", cv2.WINDOW_NORMAL)
+    win_name = "Teleoperation Pipeline"
+    cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+    cv2.setMouseCallback(win_name, system.handle_mouse_click)
     
     try:
         while True:
             display_frame = system.shared_frame.read()
             if display_frame is not None:
-                cv2.imshow("Teleoperation Pipeline", display_frame)
+                h, w, _ = display_frame.shape
                 
-            if cv2.waitKey(33) & 0xFF == 27: 
+                btn_w, btn_h = 220, 50
+                x2, y2 = w - 20, h - 20
+                x1, y1 = x2 - btn_w, y2 - btn_h
+                system.btn_rect = (x1, y1, x2, y2)
+                
+                if not system.system_ready:
+                    # Warm-up
+                    cv2.rectangle(display_frame, (x1, y1), (x2, y2), (100, 100, 100), cv2.FILLED)
+                    cv2.putText(display_frame, "INITIALIZING...", (x1 + 15, y1 + 32), 
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2, cv2.LINE_AA)
+                else:
+                    if not system.teleop_active:
+                        # wait for set pose 
+                        cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 200, 0), cv2.FILLED)
+                        cv2.putText(display_frame, "START TELEOP", (x1 + 20, y1 + 32), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+                    else:
+                        # running -> reset? 
+                        cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 140, 255), cv2.FILLED)
+                        cv2.putText(display_frame, "RESET POSE", (x1 + 30, y1 + 32), 
+                                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+
+                cv2.imshow(win_name, display_frame)
+                
+            key = cv2.waitKey(33) & 0xFF
+            if key == 27: # Phím ESC để thoát
                 break
+            elif key == 32: # Phím SPACE để kích hoạt nhanh
+                system.trigger_set_pose()
                 
     except KeyboardInterrupt:
         print("[SYSTEM] KeyboardInterrupt")
