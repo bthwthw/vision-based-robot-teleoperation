@@ -84,6 +84,7 @@ class PyBulletSimulatorWorker:
         self.sys.shared_joints.write(home_joints_rad + [0.0], time.time())
 
         print("[Communication] PyBullet simulation started")
+        log_counter = 0
 
         try:
             while self.sys.is_running:
@@ -104,7 +105,7 @@ class PyBulletSimulatorWorker:
                         p.setJointMotorControl2(self.sys.robot_id, idx, p.POSITION_CONTROL,targetPosition=target, force=500, 
                                                 maxVelocity=max_vel)
                     current_pybullet_angles = [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices]
-                    print(f"[PyBullet-EXEC] Target: {[round(t, 2) for t in arm_targets]} | Thực tế mô phỏng: {[round(a, 2) for a in current_pybullet_angles]}")
+                    # print(f"[PyBullet-EXEC] Target: {[round(t, 2) for t in arm_targets]} | Actual: {[round(a, 2) for a in current_pybullet_angles]}")
                     p.setJointMotorControl2(self.sys.robot_id, master_idx, p.POSITION_CONTROL, targetPosition=gripper_target, 
                                             force=200, maxVelocity=5.0)
 
@@ -112,6 +113,11 @@ class PyBulletSimulatorWorker:
                         if joint_name in name_to_index:
                             slave_idx = name_to_index[joint_name]
                             p.setJointMotorControl2(self.sys.robot_id, slave_idx, p.POSITION_CONTROL, targetPosition=multiplier * gripper_target, force=200, maxVelocity=5.0)
+
+                    log_counter += 1
+                    if self.sys.teleop_active and log_counter % 12 == 0:
+                        current_pybullet_angles = [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices]
+                        print(f"[PyBullet-EXEC] Target: {[round(t, 2) for t in arm_targets]} | Actual: {[round(a, 2) for a in current_pybullet_angles]}")
 
                 p.stepSimulation()
                 time.sleep(1.0 / 240.0)
