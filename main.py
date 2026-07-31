@@ -1,4 +1,3 @@
-# main.py
 import queue
 import threading
 import time
@@ -105,7 +104,7 @@ def main():
     win_name = "Teleoperation Pipeline"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
     btn_w, btn_h = 300, 50
-    space_time = 0.2
+    space_time = 0.3
     
     try:
         while True:
