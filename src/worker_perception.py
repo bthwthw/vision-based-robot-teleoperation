@@ -83,7 +83,6 @@ class PerceptionWorker:
                 landmarks = tracker.get_all_landmarks_pixel(color_img)
                 handedness = tracker.get_handedness(color_img)
 
-                # Dict lưu trữ tạm thời các giá trị bóc tách hình học phục vụ ghi log tổng
                 log_data_dict = {
                     "frame_timestamp_s": timestamp / 1000.0,
                     "raw_pos": None, "filt_pos": None,

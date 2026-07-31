@@ -66,9 +66,9 @@ class cuRoboControllerWorker:
         last_robot_target_rot = robot_start_rot
 
         core_mapping = [
-            [ 0, -1,  0],
+            [  0,  0,  1],
             [ -1,  0,  0],
-            [ 0,  0,  -1]
+            [  0, -1,  0]
         ]
         gain = 1.5
         R_map = R.from_matrix(core_mapping)
@@ -119,16 +119,25 @@ class cuRoboControllerWorker:
                     raw_hand_pos[2] - hand_start_pos[2]
                 ])
                 
-                delta_robot = P_map @ delta_hand_cam
-                robot_target_pos = [robot_base_pos[0] + delta_robot[0], robot_base_pos[1] + delta_robot[1], robot_base_pos[2] + delta_robot[2]]
+                delta_robot_base = P_map @ delta_hand_cam
                 
+                R_tcp_current = robot_start_rot.as_matrix()
+                
+                delta_robot_tcp_aligned = R_tcp_current.dot(delta_robot_base)
+                
+                robot_target_pos = [
+                    robot_base_pos[0] + delta_robot_tcp_aligned[0], 
+                    robot_base_pos[1] + delta_robot_tcp_aligned[1], 
+                    robot_base_pos[2] + delta_robot_tcp_aligned[2]
+                ]
+
                 delta_rot_cam = current_hand_rot * hand_start_rot.inv()
                 delta_rot_rob = R_map * delta_rot_cam * R_map.inv()
                 
                 # robot_start_rot = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
-                robot_target_rot = delta_rot_rob * robot_start_rot
+                robot_target_rot = robot_start_rot * delta_rot_rob
                 
-                target_quat_xyzw = robot_target_rot.as_quat()
+                target_quat_xyzw = (robot_target_rot).as_quat()
                 robot_target_quat = [target_quat_xyzw[3], target_quat_xyzw[0], target_quat_xyzw[1], target_quat_xyzw[2]]
 
                 last_robot_target_pos = robot_target_pos
