@@ -21,8 +21,6 @@ class TeleopSystem:
         self.shared_pose = SharedPoseState()
         self.shared_joints = SharedJointState()
         self.shared_frame = SharedFrameState()
-        
-        # Biến trạng thái chung lưu trữ 2 nửa nhật ký Log của hệ thống
         self.shared_log = SharedLogState()
         
         self.is_running = False
@@ -107,6 +105,7 @@ def main():
     win_name = "Teleoperation Pipeline"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
     btn_w, btn_h = 220, 50
+    space_time = 0.2
     
     try:
         while True:
@@ -114,7 +113,7 @@ def main():
             t_current = time.time()
 
             if system.teleop_active:
-                if t_current - system.last_space_press_time > 0.15:
+                if t_current - system.last_space_press_time > space_time:
                     system.set_teleop_state(active_target=False)
 
             if display_frame is not None:

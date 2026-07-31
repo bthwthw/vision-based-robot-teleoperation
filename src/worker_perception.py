@@ -61,8 +61,8 @@ class PerceptionWorker:
         TCP_INDEX = 0
         GRIPPER_INDEXES = [3, 5]     
         BASE_INDEXES = [5, 0, 9, 13] 
-        thres_open = 45.0
-        thres_close = 35.0
+        thres_open = 50.0
+        thres_close = 40.0
         gripper_state = "Open"
         
         camera = RealSenseNode(playback_file=self.sys.playback_file)
