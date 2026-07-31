@@ -1,9 +1,6 @@
 import numpy as np
 
 class OutlierRejector:
-    """
-    Bộ lọc chặn nhiễu tối giản: Cắt bỏ tín hiệu vô lý dựa trên khoảng cách vật lý tối đa.
-    """
     def __init__(self, max_jump_per_sec, max_rejects=10):
         self.max_jump_per_sec = max_jump_per_sec
         self.max_rejects = max_rejects
@@ -132,7 +129,6 @@ class Position3DFilter:
 
 
 class QuaternionFilter:
-    """ Khối xử lý góc xoay tối giản. """
     def __init__(self, min_cutoff=1.5, beta=1.0, d_cutoff=1.0, cutoff_max=20.0, reject_max_omega=15.0, max_rejects=20, slew_limit_omega=10.0):
         self.min_cutoff = min_cutoff
         self.beta = beta
