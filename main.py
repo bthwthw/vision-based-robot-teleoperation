@@ -38,18 +38,11 @@ class TeleopSystem:
         self.system_ready = False
         self.teleop_active = False
         self.request_toggle_teleop = False
-        
-        self.btn_rect = (0, 0, 0, 0)
+        self.last_space_press_time = 0.0
 
-    def trigger_toggle_teleop(self):
-        if self.system_ready:
+    def set_teleop_state(self, active_target):
+        if self.system_ready and self.teleop_active != active_target:
             self.request_toggle_teleop = True
-
-    def handle_mouse_click(self, event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN:
-            x1, y1, x2, y2 = self.btn_rect
-            if x1 <= x <= x2 and y1 <= y <= y2:
-                self.trigger_toggle_teleop()
 
     def _logger_thread(self):
         print("[Logger] Initializing...")
@@ -63,20 +56,16 @@ class TeleopSystem:
         last_ts = 0.0
         try:
             while self.is_running:
-                # Trích xuất đồng thời 2 nửa dữ liệu mới nhất từ bộ nhớ chung
                 vis_log, ctrl_log = self.shared_log.read_all()
                 
-                # Xác định nhãn mốc thời gian (Ưu tiên luồng Control vì nó xử lý sau)
                 current_ts = ctrl_log.get("frame_timestamp_s", vis_log.get("frame_timestamp_s", 0.0))
                 
-                # Chỉ tiến hành ghi khi có chuỗi dữ liệu mới xuất hiện
                 if current_ts != last_ts and current_ts != 0.0:
-                    # Trộn 2 dictionary độc lập thành một dòng hoàn chỉnh
                     merged_payload = {**vis_log, **ctrl_log}
                     logger.log(**merged_payload)
                     last_ts = current_ts
                     
-                time.sleep(0.01) # Quét đồng bộ tần số 100Hz
+                time.sleep(0.01)
         finally:
             print("[Logger] Stop logging ...")
             logger.close()
@@ -117,18 +106,22 @@ def main():
     
     win_name = "Teleoperation Pipeline"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
-    cv2.setMouseCallback(win_name, system.handle_mouse_click)
+    btn_w, btn_h = 220, 50
     
     try:
         while True:
             display_frame = system.shared_frame.read()
+            t_current = time.time()
+
+            if system.teleop_active:
+                if t_current - system.last_space_press_time > 0.15:
+                    system.set_teleop_state(active_target=False)
+
             if display_frame is not None:
                 h, w, _ = display_frame.shape
                 
-                btn_w, btn_h = 220, 50
                 x2, y2 = w - 20, h - 20
                 x1, y1 = x2 - btn_w, y2 - btn_h
-                system.btn_rect = (x1, y1, x2, y2)
                 
                 if not system.system_ready:
                     cv2.rectangle(display_frame, (x1, y1), (x2, y2), (100, 100, 100), cv2.FILLED)
@@ -146,11 +139,12 @@ def main():
 
                 cv2.imshow(win_name, display_frame)
                 
-            key = cv2.waitKey(33) & 0xFF
-            if key == 27:
+            key = cv2.waitKey(20) & 0xFF 
+            if key == 27:  # ESC 
                 break
-            elif key == 32:
-                system.trigger_toggle_teleop()
+            elif key == 32:  # SPACE 
+                system.last_space_press_time = time.time()
+                system.set_teleop_state(active_target=True)
                 
     except KeyboardInterrupt:
         print("[SYSTEM] KeyboardInterrupt")

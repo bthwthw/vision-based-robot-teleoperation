@@ -125,7 +125,7 @@ class cuRoboControllerWorker:
                 delta_rot_cam = current_hand_rot * hand_start_rot.inv()
                 delta_rot_rob = R_map * delta_rot_cam * R_map.inv()
                 
-                robot_start_rot = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
+                # robot_start_rot = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
                 robot_target_rot = delta_rot_rob * robot_start_rot
                 
                 target_quat_xyzw = robot_target_rot.as_quat()
