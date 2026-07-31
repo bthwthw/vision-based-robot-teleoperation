@@ -1,4 +1,5 @@
 import time
+import numpy as np
 from pathlib import Path
 import pybullet as p
 import pybullet_data
@@ -6,6 +7,26 @@ import pybullet_data
 class PyBulletSimulatorWorker:
     def __init__(self, system):
         self.sys = system
+        self.axis_ids = [-1, -1, -1]
+
+    def _draw_tcp_axes(self, link_state, axis_length=0.15):
+        tcp_pos = link_state[4]
+        tcp_orn_xyzw = link_state[5]
+        
+        rot_matrix = np.reshape(p.getMatrixFromQuaternion(tcp_orn_xyzw), (3, 3))
+
+        x_end = np.array(tcp_pos) + rot_matrix[:, 0] * axis_length
+        y_end = np.array(tcp_pos) + rot_matrix[:, 1] * axis_length
+        z_end = np.array(tcp_pos) + rot_matrix[:, 2] * axis_length
+
+        if self.axis_ids[0] < 0:
+            self.axis_ids[0] = p.addUserDebugLine(tcp_pos, x_end.tolist(), [1, 0, 0], 3)
+            self.axis_ids[1] = p.addUserDebugLine(tcp_pos, y_end.tolist(), [0, 1, 0], 3)
+            self.axis_ids[2] = p.addUserDebugLine(tcp_pos, z_end.tolist(), [0, 0, 1], 3)
+        else:
+            p.addUserDebugLine(tcp_pos, x_end.tolist(), [1, 0, 0], 3, replaceItemUniqueId=self.axis_ids[0])
+            p.addUserDebugLine(tcp_pos, y_end.tolist(), [0, 1, 0], 3, replaceItemUniqueId=self.axis_ids[1])
+            p.addUserDebugLine(tcp_pos, z_end.tolist(), [0, 0, 1], 3, replaceItemUniqueId=self.axis_ids[2])
 
     def run(self):
         print("[Communication] Initializing...")
@@ -58,6 +79,14 @@ class PyBulletSimulatorWorker:
         try:
             while self.sys.is_running:
                 joints, _ts = self.sys.shared_joints.read()
+
+                if self.sys.robot_id is not None:
+                    try:
+                        link_state = p.getLinkState(self.sys.robot_id, self.sys.tcp_link_idx, computeForwardKinematics=True)
+                        self._draw_tcp_axes(link_state, axis_length=0.15)
+                    except p.error:
+                        pass
+
                 if joints is not None and len(joints) >= 7:
                     arm_targets = joints[:6]
                     gripper_target = joints[6]
