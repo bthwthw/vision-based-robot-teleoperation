@@ -68,9 +68,9 @@ class cuRoboControllerWorker:
         last_robot_target_rot = robot_start_rot
 
         core_mapping = [
-            [  0,  0,  1],
+            [  0,  1,  0],
             [ -1,  0,  0],
-            [  0, -1,  0]
+            [  0,  0,  1]
         ]
         gain = 1.5
         R_map = R.from_matrix(core_mapping)

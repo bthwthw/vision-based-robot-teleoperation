@@ -1,0 +1,29 @@
+
+=== FILTER ANALYSIS ===
+File   : RT_20260731_110802.csv
+Frames : 1816
+FPS    : mean=132.5ms | std=763.1ms | max=31891.0ms
+[FILTER ANALYZER WARN] High frame time variance detected. Metrics may be degraded.
+
+[POSITION LAG]
+  X: 132.5 ms
+  Y: 132.5 ms
+  Z: 0.0 ms
+
+[ GRIPPER LAG ]
+  Dist: 0.0 ms
+
+[ORIENTATION LAG]
+  Lag: 0.0 ms
+
+[JITTER REDUCTION]
+  X  : raw=0.86mm | filt=0.54mm (-38%)
+  Y  : raw=0.76mm | filt=0.37mm (-52%)
+  Z  : raw=0.82mm | filt=0.56mm (-32%)
+  Grip: raw=3.77mm | filt=1.64mm (-57%)
+  Ori: raw=3.80deg | filt=1.92deg (-49%)
+
+[KINEMATIC CHECK]
+  CAMERA INPUT (Raw) : Max = 877 deg/s | Mean = 39.1 deg/s
+  ROBOT OUTPUT (Filt): Max = 1092 deg/s | Mean = 19.0 deg/s
+  [WARNING] FATAL SPIKE LEAKED TO ROBOT! Slew Limiter failed or threshold is too high.
