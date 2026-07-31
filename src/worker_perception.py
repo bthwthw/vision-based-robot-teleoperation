@@ -62,7 +62,7 @@ class PerceptionWorker:
         GRIPPER_INDEXES = [3, 5]     
         BASE_INDEXES = [5, 0, 9, 13] 
         thres_open = 50.0
-        thres_close = 40.0
+        thres_close = 30.0
         gripper_state = "Open"
         
         camera = RealSenseNode(playback_file=self.sys.playback_file)
@@ -70,7 +70,7 @@ class PerceptionWorker:
         
         tcp_filter = Position3DFilter(min_cutoff=0.1, beta=20.0, cutoff_max=15.0, reject_max_jump_mps=2.18, slew_limit_mps=1.0)
         quat_filter = QuaternionFilter(min_cutoff=0.1, beta=1.0, cutoff_max=20.0, reject_max_omega=2.09, max_rejects=10)
-        gripper_filter = Scalar1DFilter(min_cutoff=1.0, beta=0.002, cutoff_max=10.0, reject_max_jump=3500.0, slew_limit_mps=4000)
+        gripper_filter = Scalar1DFilter(min_cutoff=0.5, beta=0.05, cutoff_max=10.0, reject_max_jump=350.0, slew_limit_mps=400)
         
         try:
             while self.sys.is_running:
