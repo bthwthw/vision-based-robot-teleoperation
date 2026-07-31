@@ -5,10 +5,13 @@ from pathlib import Path
 import pybullet as p
 import pybullet_data
 
+from src.module_scene import SceneManager
+
 class PyBulletSimulatorWorker:
     def __init__(self, system):
         self.sys = system
         self.axis_ids = [-1, -1, -1]
+        self.scene_manager = SceneManager(table_top_z=0.4)
 
     def _draw_tcp_axes(self, link_state, axis_length=0.15):
         tcp_pos = link_state[4]
@@ -35,6 +38,8 @@ class PyBulletSimulatorWorker:
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setGravity(0, 0, -9.81)
         p.loadURDF("plane.urdf")
+
+        self.scene_manager.setup_pick_and_place_scene()
 
         urdf_path = str(Path("assets/abb_irb1200_509_gripper/irb1200_full.urdf").resolve())
         self.sys.robot_id = p.loadURDF(urdf_path, basePosition=[0, 0, 0], useFixedBase=True)
