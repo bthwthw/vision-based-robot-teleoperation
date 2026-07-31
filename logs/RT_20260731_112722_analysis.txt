@@ -1,0 +1,29 @@
+
+=== FILTER ANALYSIS ===
+File   : RT_20260731_112722.csv
+Frames : 1216
+FPS    : mean=102.5ms | std=252.5ms | max=8373.0ms
+[FILTER ANALYZER WARN] High frame time variance detected. Metrics may be degraded.
+
+[POSITION LAG]
+  X: 205.0 ms
+  Y: 102.5 ms
+  Z: 102.5 ms
+
+[ GRIPPER LAG ]
+  Dist: 0.0 ms
+
+[ORIENTATION LAG]
+  Lag: 205.0 ms
+
+[JITTER REDUCTION]
+  X  : raw=0.63mm | filt=0.27mm (-57%)
+  Y  : raw=0.77mm | filt=0.38mm (-51%)
+  Z  : raw=0.67mm | filt=0.38mm (-43%)
+  Grip: raw=4.09mm | filt=2.14mm (-48%)
+  Ori: raw=3.27deg | filt=1.07deg (-67%)
+
+[KINEMATIC CHECK]
+  CAMERA INPUT (Raw) : Max = 924 deg/s | Mean = 41.8 deg/s
+  ROBOT OUTPUT (Filt): Max = 289 deg/s | Mean = 13.3 deg/s
+  [SUCCESS] All spikes were successfully blocked and saturated by the filter.
