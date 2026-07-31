@@ -104,7 +104,7 @@ def main():
     
     win_name = "Teleoperation Pipeline"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
-    btn_w, btn_h = 220, 50
+    btn_w, btn_h = 300, 50
     space_time = 0.2
     
     try:
@@ -129,11 +129,11 @@ def main():
                 else:
                     if not system.teleop_active:
                         cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 200, 0), cv2.FILLED)
-                        cv2.putText(display_frame, "START TELEOP", (x1 + 20, y1 + 32), 
+                        cv2.putText(display_frame, "HOLD 'SPACE' TO START", (x1 + 20, y1 + 32), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
                     else:
                         cv2.rectangle(display_frame, (x1, y1), (x2, y2), (0, 0, 220), cv2.FILLED)
-                        cv2.putText(display_frame, "STOP TELEOP", (x1 + 30, y1 + 32), 
+                        cv2.putText(display_frame, "RELEASE 'SPACE' TO STOP", (x1 + 30, y1 + 32), 
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
                 cv2.imshow(win_name, display_frame)
