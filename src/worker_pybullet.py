@@ -1,3 +1,4 @@
+import math
 import time
 import numpy as np
 from pathlib import Path
@@ -73,6 +74,14 @@ class PyBulletSimulatorWorker:
             "right_inner_knuckle_joint": -1.0, 
             "right_inner_finger_joint": 1.0,   
         }
+
+        home_joints_deg = [0.0, 0.0, 0.0, 0.0, 90.0, 0.0]
+        home_joints_rad = [math.radians(deg) for deg in home_joints_deg]
+
+        for idx, target_rad in zip(self.sys.arm_indices, home_joints_rad):
+            p.resetJointState(self.sys.robot_id, idx, target_rad)
+
+        self.sys.shared_joints.write(home_joints_rad + [0.0], time.time())
 
         print("[Communication] PyBullet simulation started")
 

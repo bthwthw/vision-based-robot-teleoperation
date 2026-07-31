@@ -1,3 +1,4 @@
+import math
 import time
 from pathlib import Path
 import numpy as np
@@ -36,7 +37,8 @@ class cuRoboControllerWorker:
         
         retract_q = ik_solver.robot_config.kinematics.cspace.retract_config
         retract_q = retract_q.detach().cpu().numpy()
-        retract_list = np.atleast_1d(retract_q).flatten().tolist()
+        custom_home_deg = [0.0, 0.0, 0.0, 0.0, 90.0, 0.0]
+        retract_list = [math.radians(deg) for deg in custom_home_deg]
         
         retract_tensor = torch.tensor([retract_list], dtype=torch.float32, device=tensor_args.device)
         retract_fk = ik_solver.fk(retract_tensor)
