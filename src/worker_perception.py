@@ -69,8 +69,8 @@ class PerceptionWorker:
         tracker = HandTrackerNode(model_path='model/hand_landmarker.task')
         
         tcp_filter = Position3DFilter(min_cutoff=0.1, beta=20.0, cutoff_max=15.0, reject_max_jump_mps=2.18, slew_limit_mps=1.0)
-        quat_filter = QuaternionFilter(min_cutoff=0.1, beta=1.0, cutoff_max=20.0, reject_max_omega=2.09, max_rejects=10)
-        gripper_filter = Scalar1DFilter(min_cutoff=0.5, beta=0.05, cutoff_max=10.0, reject_max_jump=350.0, slew_limit_mps=400)
+        quat_filter = QuaternionFilter(min_cutoff=0.1, beta=1.0, cutoff_max=20.0, reject_max_omega=2.09, max_rejects=10, slew_limit_omega=2.0)
+        gripper_filter = Scalar1DFilter(min_cutoff=0.5, beta=0.05, cutoff_max=10.0, reject_max_jump=350.0, slew_limit_mps=300)
         
         try:
             while self.sys.is_running:
