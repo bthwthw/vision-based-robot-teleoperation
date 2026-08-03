@@ -18,12 +18,12 @@ class HandKinematics:
         p2 = np.array(Px2)
         p3 = np.array(P3)
 
-        # X
-        x_axis = p1 - p2
-        norm_x = np.linalg.norm(x_axis)
-        if norm_x < 1e-6:
+        # y
+        y_axis = p2 - p1
+        norm_y = np.linalg.norm(y_axis)
+        if norm_y < 1e-6:
             return None
-        x_axis = x_axis / norm_x
+        y_axis = y_axis / norm_y
         
         v_2_0 = p2 - p0
         v_3_0 = p3 - p0
@@ -33,14 +33,14 @@ class HandKinematics:
             temp_down = -temp_down
             # print ("[KINEMATICS INFO] Using Right-Handed Coordinate System.")
 
-        # Y
-        y_axis = np.cross(temp_down, x_axis)
-        norm_y = np.linalg.norm(y_axis)
-        if norm_y < 1e-6:
-            return None
-        y_axis = y_axis / norm_y
-
         # X
+        x_axis = np.cross(y_axis, temp_down)
+        norm_x = np.linalg.norm(x_axis)
+        if norm_x < 1e-6:
+            return None
+        x_axis = x_axis / norm_x
+
+        # Z
         z_axis = np.cross(x_axis, y_axis)
         z_axis = z_axis / np.linalg.norm(z_axis)
 

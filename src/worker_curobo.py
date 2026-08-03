@@ -37,7 +37,7 @@ class cuRoboControllerWorker:
         
         retract_q = ik_solver.robot_config.kinematics.cspace.retract_config
         retract_q = retract_q.detach().cpu().numpy()
-        custom_home_deg = [0.0, 0.0, 0.0, 0.0, 90.0, 0.0]
+        custom_home_deg = [0.0, 0.0, 0.0, 0.0, 90.0, 90.0]
         retract_list = [math.radians(deg) for deg in custom_home_deg]
         
         retract_tensor = torch.tensor([retract_list], dtype=torch.float32, device=tensor_args.device)
@@ -68,8 +68,8 @@ class cuRoboControllerWorker:
         last_robot_target_rot = robot_start_rot
 
         core_mapping = [
-            [  0,  1,  0],
             [ -1,  0,  0],
+            [  0, -1,  0],
             [  0,  0,  1]
         ]
         gain = 1.5
