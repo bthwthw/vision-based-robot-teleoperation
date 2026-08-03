@@ -10,9 +10,8 @@ from src.module_scene import SceneManager
 
 
 def compute_gripper_control(current_pos, gripper_target, contact_detected=False,
-                            open_limit=0.0, close_limit=0.71,
-                            step=0.01, close_force=35.0, open_force=35.0, hold_force=20.0):
-
+                           open_limit=0.0, close_limit=0.71,
+                           step=0.01, close_force=32.0, open_force=35.0, hold_force=8.0):
     if gripper_target <= 0.5:
         target = max(current_pos - step, open_limit)
         force = open_force
@@ -88,8 +87,9 @@ class PyBulletSimulatorWorker:
         try:
             for box_id in self.scene_manager.box_ids:
                 contacts = p.getContactPoints(self.sys.robot_id, box_id)
-                if contacts:
-                    return True
+                for contact in contacts:
+                    if contact[8] <= 0.002:
+                        return True
         except (p.error, AttributeError):
             return False
         return False
