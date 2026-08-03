@@ -8,7 +8,7 @@ def test_close_command_stops_when_contact_detected():
         contact_detected=True,
     )
 
-    assert target == 0.16
+    assert target == 0.161
     assert force <= 35
     assert holding is True
 
@@ -20,6 +20,6 @@ def test_close_command_advances_slowly_without_contact():
         contact_detected=False,
     )
 
-    assert target == 0.17
+    assert target == 0.18
     assert force <= 35
     assert holding is False

@@ -11,14 +11,15 @@ from src.module_scene import SceneManager
 
 def compute_gripper_control(current_pos, gripper_target, contact_detected=False,
                            open_limit=0.0, close_limit=0.71,
-                           step=0.01, close_force=32.0, open_force=35.0, hold_force=8.0):
+                           step=0.02, close_force=28.0, open_force=30.0, hold_force=8.0,
+                           contact_step=0.001):
     if gripper_target <= 0.5:
         target = max(current_pos - step, open_limit)
         force = open_force
         holding = False
     else:
         if contact_detected:
-            target = current_pos
+            target = min(current_pos + contact_step, close_limit)
             force = hold_force
             holding = True
         else:
@@ -123,7 +124,7 @@ class PyBulletSimulatorWorker:
                 p.changeDynamics(self.sys.robot_id, name_to_index[name], jointLowerLimit=-3.14, jointUpperLimit=3.14)
 
         for i in range(p.getNumJoints(self.sys.robot_id)):
-            p.changeDynamics(self.sys.robot_id, i, lateralFriction=1.0, spinningFriction=1.0,
+            p.changeDynamics(self.sys.robot_id, i, lateralFriction=0.6, spinningFriction=0.2,
                              rollingFriction=0.0001, frictionAnchor=True)
 
         arm_joint_names = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
