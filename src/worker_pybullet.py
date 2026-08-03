@@ -1,5 +1,6 @@
 import math
 import time
+import cv2
 import numpy as np
 from pathlib import Path
 import pybullet as p
@@ -7,11 +8,59 @@ import pybullet_data
 
 from src.module_scene import SceneManager
 
+
+def compute_gripper_control(current_pos, gripper_target, contact_detected=False,
+                            open_limit=0.0, close_limit=0.71,
+                            step=0.01, close_force=35.0, open_force=35.0, hold_force=20.0):
+
+    if gripper_target <= 0.5:
+        target = max(current_pos - step, open_limit)
+        force = open_force
+        holding = False
+    else:
+        if contact_detected:
+            target = current_pos
+            force = hold_force
+            holding = True
+        else:
+            target = min(current_pos + step, close_limit)
+            force = close_force
+            holding = False
+
+    return float(target), float(force), holding
+
 class PyBulletSimulatorWorker:
     def __init__(self, system):
         self.sys = system
         self.axis_ids = [-1, -1, -1]
         self.scene_manager = SceneManager(table_top_z=0.4)
+
+    def _get_wrist_camera_frame(self, link_state, width=320, height=240):
+        tcp_pos = np.array(link_state[4])
+        tcp_orn_xyzw = link_state[5]
+        rot_matrix = np.reshape(p.getMatrixFromQuaternion(tcp_orn_xyzw), (3, 3))
+
+        approach_axis_local = rot_matrix[:, 2]   
+        up_axis_local = rot_matrix[:, 1]         
+        CAM_BACK_OFFSET = 0.10   
+        CAM_FORWARD_LOOK = 0.15  
+
+        cam_eye = tcp_pos - approach_axis_local * CAM_BACK_OFFSET + up_axis_local * 0.05
+        cam_target = tcp_pos + approach_axis_local * CAM_FORWARD_LOOK
+
+        view_matrix = p.computeViewMatrix(
+            cameraEyePosition=cam_eye.tolist(),
+            cameraTargetPosition=cam_target.tolist(),
+            cameraUpVector=up_axis_local.tolist(),
+        )
+        proj_matrix = p.computeProjectionMatrixFOV(fov=60, aspect=width / height, nearVal=0.01, farVal=1.0)
+
+        _, _, rgb_img, _, _ = p.getCameraImage(
+            width, height, view_matrix, proj_matrix,
+            renderer=p.ER_BULLET_HARDWARE_OPENGL,
+        )
+        rgb_array = np.reshape(rgb_img, (height, width, 4))[:, :, :3].astype(np.uint8)
+        return rgb_array
 
     def _draw_tcp_axes(self, link_state, axis_length=0.15):
         tcp_pos = link_state[4]
@@ -32,6 +81,19 @@ class PyBulletSimulatorWorker:
             p.addUserDebugLine(tcp_pos, y_end.tolist(), [0, 1, 0], 3, replaceItemUniqueId=self.axis_ids[1])
             p.addUserDebugLine(tcp_pos, z_end.tolist(), [0, 0, 1], 3, replaceItemUniqueId=self.axis_ids[2])
 
+    def _has_box_contact(self):
+        if self.sys.robot_id is None:
+            return False
+
+        try:
+            for box_id in self.scene_manager.box_ids:
+                contacts = p.getContactPoints(self.sys.robot_id, box_id)
+                if contacts:
+                    return True
+        except (p.error, AttributeError):
+            return False
+        return False
+
     def run(self):
         print("[Communication] Initializing...")
         p.connect(p.GUI)
@@ -43,8 +105,7 @@ class PyBulletSimulatorWorker:
         self.scene_manager.setup_pick_and_place_scene()
 
         urdf_path = str(Path("assets/abb_irb1200_509_gripper/irb1200_full.urdf").resolve())
-        self.sys.robot_id = p.loadURDF(urdf_path, basePosition=[0, 0, 0], useFixedBase=True,
-                                       flags=p.URDF_USE_SELF_COLLISION | p.URDF_USE_SELF_COLLISION_EXCLUDE_PARENT)
+        self.sys.robot_id = p.loadURDF(urdf_path, basePosition=[0, 0, 0], useFixedBase=True)
 
         name_to_index = {}
         for i in range(p.getNumJoints(self.sys.robot_id)):
@@ -55,20 +116,15 @@ class PyBulletSimulatorWorker:
         print(f"[Communication] TCP - Link ID={self.sys.tcp_link_idx} ({[k for k,v in name_to_index.items() if v==self.sys.tcp_link_idx]})")
 
         gripper_joint_names = ["left_outer_finger_joint", "left_inner_knuckle_joint",
-                        "left_inner_finger_joint", "right_outer_knuckle_joint",
-                        "right_inner_knuckle_joint", "right_inner_finger_joint", "right_outer_finger_joint"] #"finger_joint", 
+                               "left_inner_finger_joint", "right_outer_knuckle_joint",
+                               "right_inner_knuckle_joint", "right_inner_finger_joint", "right_outer_finger_joint"] 
         for name in gripper_joint_names:
             if name in name_to_index:
                 p.changeDynamics(self.sys.robot_id, name_to_index[name], jointLowerLimit=-3.14, jointUpperLimit=3.14)
 
         for i in range(p.getNumJoints(self.sys.robot_id)):
-            p.changeDynamics(self.sys.robot_id, i, 
-                lateralFriction=2.5,     # ma sát trượt
-                spinningFriction=0.05,   # ma sát xoay chống xoay hộp
-                rollingFriction=0.05,    # ma sát lăn
-                contactStiffness=1e4,    # độ cứng bề mặt tiếp xúc
-                contactDamping=10.0      # độ giảm chấn
-            )
+            p.changeDynamics(self.sys.robot_id, i, lateralFriction=1.0, spinningFriction=1.0,
+                             rollingFriction=0.0001, frictionAnchor=True)
 
         arm_joint_names = ["joint_1", "joint_2", "joint_3", "joint_4", "joint_5", "joint_6"]
         JOINT_MAX_VEL = {
@@ -83,13 +139,12 @@ class PyBulletSimulatorWorker:
         self.sys.arm_indices = [name_to_index[name] for name in arm_joint_names if name in name_to_index]
         
         master_idx = name_to_index["finger_joint"]
-        gripper_mimic_relations = {
-            "left_inner_knuckle_joint": 1.0,
-            "left_inner_finger_joint": -1.0,
-            "right_outer_knuckle_joint": -1.0, 
-            "right_inner_knuckle_joint": -1.0, 
-            "right_inner_finger_joint": 1.0,   
-        }
+        
+        slave_joint_names = ["left_inner_knuckle_joint", "left_inner_finger_joint", 
+                             "right_outer_knuckle_joint", "right_inner_knuckle_joint", 
+                             "right_inner_finger_joint"]
+        slave_indices = [name_to_index[name] for name in slave_joint_names if name in name_to_index]
+        mimic_multipliers = np.array([1.0, -1.0, -1.0, -1.0, 1.0])
 
         home_joints_deg = [0.0, 0.0, 0.0, 0.0, 90.0, 90.0]
         home_joints_rad = [math.radians(deg) for deg in home_joints_deg]
@@ -110,6 +165,9 @@ class PyBulletSimulatorWorker:
                     try:
                         link_state = p.getLinkState(self.sys.robot_id, self.sys.tcp_link_idx, computeForwardKinematics=True)
                         self._draw_tcp_axes(link_state, axis_length=0.15)
+
+                        if log_counter % 6 == 0:  # ~40Hz
+                            wrist_frame = self._get_wrist_camera_frame(link_state)
                     except p.error:
                         pass
 
@@ -121,21 +179,46 @@ class PyBulletSimulatorWorker:
                         p.setJointMotorControl2(self.sys.robot_id, idx, p.POSITION_CONTROL,targetPosition=target, force=200, 
                                                 maxVelocity=max_vel)
                     current_pybullet_angles = [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices]
-                    # print(f"[PyBullet-EXEC] Target: {[round(t, 2) for t in arm_targets]} | Actual: {[round(a, 2) for a in current_pybullet_angles]}")
-                    p.setJointMotorControl2(self.sys.robot_id, master_idx, p.POSITION_CONTROL, targetPosition=gripper_target, 
-                                            force=20, maxVelocity=5.0)
-
-                    # if gripper_target > 0.01:
-                    #     p.setJointMotorControl2(self.sys.robot_id, master_idx, p.VELOCITY_CONTROL, targetVelocity=2.0, force=15)
-                    # else:
-                    #     p.setJointMotorControl2(self.sys.robot_id, master_idx, p.VELOCITY_CONTROL, targetVelocity=-2.0, force=15)
-
+                    
+                    # p.setJointMotorControl2(self.sys.robot_id, master_idx, p.POSITION_CONTROL, targetPosition=gripper_target, 
+                    #                         force=50, maxVelocity=5.0)
                     actual_master_pos = p.getJointState(self.sys.robot_id, master_idx)[0]
 
-                    for joint_name, multiplier in gripper_mimic_relations.items():
-                        if joint_name in name_to_index:
-                            slave_idx = name_to_index[joint_name]
-                            p.setJointMotorControl2(self.sys.robot_id, slave_idx, p.POSITION_CONTROL, targetPosition=multiplier * actual_master_pos, force=20, maxVelocity=5.0)
+                    # target_slave_positions = mimic_multipliers * actual_master_pos
+                    # p.setJointMotorControlArray(
+                    #     self.sys.robot_id, 
+                    #     slave_indices, 
+                    #     p.POSITION_CONTROL, 
+                    #     targetPositions=target_slave_positions.tolist(),
+                    #     forces=[50] * len(slave_indices), 
+                    #     positionGains=np.ones(len(slave_indices)) 
+                    # )
+
+                    contact_detected = self._has_box_contact()
+                    target_master_pos, current_force, _ = compute_gripper_control(
+                        current_pos=actual_master_pos,
+                        gripper_target=gripper_target,
+                        contact_detected=contact_detected,
+                    )
+
+                    p.setJointMotorControl2(
+                        self.sys.robot_id,
+                        master_idx,
+                        p.POSITION_CONTROL,
+                        targetPosition=target_master_pos,
+                        force=current_force,
+                        maxVelocity=4.0,
+                    )
+
+                    target_slave_positions = mimic_multipliers * actual_master_pos
+                    p.setJointMotorControlArray(
+                        self.sys.robot_id,
+                        slave_indices,
+                        p.POSITION_CONTROL,
+                        targetPositions=target_slave_positions.tolist(),
+                        forces=[current_force] * len(slave_indices),
+                        positionGains=np.ones(len(slave_indices)),
+                    )
 
                     log_counter += 1
                     if self.sys.teleop_active and log_counter % 12 == 0:

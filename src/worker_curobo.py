@@ -102,7 +102,7 @@ class cuRoboControllerWorker:
 
                 if not self.sys.teleop_active:
                     if last_q_solution is not None:
-                        gripper_opening = 0.725 if pose_dict["gripper"] == "Close" else 0.0
+                        gripper_opening = 1.0 if pose_dict["gripper"] == "Close" else 0.0
                         q_log = last_q_solution.cpu().numpy().flatten().tolist()[:6]
                         self.sys.shared_joints.write(q_log + [gripper_opening], time.time())
                     time.sleep(0.01)
@@ -157,7 +157,7 @@ class cuRoboControllerWorker:
                 result = ik_solver.solve_batch(goal, seed_config=seed_config)
                 curobo_latency_ms = (time.time() - t_start) * 1000.0
                 
-                gripper_opening = 0.725 if pose_dict["gripper"] == "Close" else 0.0
+                gripper_opening = 1.0 if pose_dict["gripper"] == "Close" else 0.0
                 is_success = bool(result.success[0].item()) if hasattr(result.success[0], "item") else bool(result.success[0])
                 
                 q_logged = [0.0] * 6
