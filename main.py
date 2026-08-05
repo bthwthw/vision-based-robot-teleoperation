@@ -110,7 +110,6 @@ def main():
     btn_w, btn_h = 300, 50
     space_time = 0.3
     last_pybullet_frame = None
-    last_pybullet_frame_display = None
     
     try:
         while True:
@@ -118,7 +117,6 @@ def main():
             pybullet_frame = system.shared_pybullet_frame.read()
             if pybullet_frame is not None:
                 last_pybullet_frame = pybullet_frame
-                last_pybullet_frame_display = cv2.resize(pybullet_frame, (320, 480), interpolation=cv2.INTER_LINEAR)
             t_current = time.time()
 
             if system.teleop_active:
@@ -147,10 +145,10 @@ def main():
 
                 cv2.imshow(win_name, display_frame)
 
-            if last_pybullet_frame_display is not None:
-                cv2.imshow(robot_vision_win, last_pybullet_frame_display)
+            if last_pybullet_frame is not None:
+                cv2.imshow(robot_vision_win, last_pybullet_frame)
 
-            key = cv2.waitKey(20) & 0xFF 
+            key = cv2.waitKey(10) & 0xFF 
             if key == 27:  # ESC 
                 break
             elif key == 32:  # SPACE 

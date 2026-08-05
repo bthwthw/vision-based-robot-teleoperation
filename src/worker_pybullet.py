@@ -80,7 +80,8 @@ class PyBulletSimulatorWorker:
             self.cam_width, self.cam_height,
             viewMatrix=view_mat,
             projectionMatrix=proj_mat,
-            renderer=p.ER_BULLET_HARDWARE_OPENGL
+            renderer=p.ER_BULLET_HARDWARE_OPENGL,
+            flags=p.ER_NO_SEGMENTATION_MASK
         )
         rgba = np.reshape(np.array(images[2], dtype=np.uint8), (self.cam_height, self.cam_width, -1))
         return rgba[:, :, 0:3]
@@ -98,7 +99,8 @@ class PyBulletSimulatorWorker:
             self.cam_width, self.cam_height,
             viewMatrix=view_mat,
             projectionMatrix=proj_mat,
-            renderer=p.ER_BULLET_HARDWARE_OPENGL
+            renderer=p.ER_BULLET_HARDWARE_OPENGL,
+            flags=p.ER_NO_SEGMENTATION_MASK
         )
         rgba = np.reshape(np.array(images[2], dtype=np.uint8), (self.cam_height, self.cam_width, -1))
         return rgba[:, :, 0:3]
@@ -233,9 +235,10 @@ class PyBulletSimulatorWorker:
 
                         if log_counter % 16 == 0:  # 15Hz
                             wrist_frame = self._get_wrist_camera_data(tool0_link_state)
-                            world_frame = self._get_world_camera_data()
-
                             wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
+                        
+                        if log_counter % 16 == 8:  # 15Hz
+                            world_frame = self._get_world_camera_data()
                             world_bgr = cv2.cvtColor(world_frame, cv2.COLOR_RGB2BGR)
 
                             combined_frame = np.vstack((wrist_bgr, world_bgr))
@@ -298,8 +301,12 @@ class PyBulletSimulatorWorker:
                         current_pybullet_angles = [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices]
                         print(f"[PyBullet-EXEC] Target: {[round(t, 2) for t in arm_targets]} | Actual: {[round(a, 2) for a in current_pybullet_angles]}")
 
+                loop_start = time.perf_counter()
                 p.stepSimulation()
-                time.sleep(1.0 / 240.0)
+                elapsed = time.perf_counter() - loop_start
+                sleep_time = max(0.0, (1.0/240.0) - elapsed)
+                time.sleep(sleep_time)
+
         finally:
             print("[Communication] Closing OpenCV windows...")
             # cv2.destroyAllWindows()
