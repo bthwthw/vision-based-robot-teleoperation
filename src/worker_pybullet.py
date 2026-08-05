@@ -8,7 +8,6 @@ import pybullet_data
 
 from src.module_scene import SceneManager
 
-
 def compute_gripper_control(current_pos, gripper_target, contact_detected=False,
                            open_limit=0.0, close_limit=0.71,
                            step=0.02, close_force=28.0, open_force=30.0, hold_force=8.0,
@@ -35,33 +34,94 @@ class PyBulletSimulatorWorker:
         self.axis_ids = [-1, -1, -1]
         self.scene_manager = SceneManager(table_top_z=0.4)
 
-    def _get_wrist_camera_frame(self, link_state, width=320, height=240):
-        tcp_pos = np.array(link_state[4])
-        tcp_orn_xyzw = link_state[5]
-        rot_matrix = np.reshape(p.getMatrixFromQuaternion(tcp_orn_xyzw), (3, 3))
+        # rs intrinsics 
+        self.cam_width = 640
+        self.cam_height = 480
+        self.cam_fx = 616.1630249023438
+        self.cam_fy = 616.451416015625
+        self.cam_cx = 314.67425537109375
+        self.cam_cy = 247.34315490722656
 
-        approach_axis_local = rot_matrix[:, 2]   
-        up_axis_local = rot_matrix[:, 1]         
-        CAM_BACK_OFFSET = 0.10   
-        CAM_FORWARD_LOOK = 0.15  
-
-        cam_eye = tcp_pos - approach_axis_local * CAM_BACK_OFFSET + up_axis_local * 0.05
-        cam_target = tcp_pos + approach_axis_local * CAM_FORWARD_LOOK
-
-        view_matrix = p.computeViewMatrix(
-            cameraEyePosition=cam_eye.tolist(),
-            cameraTargetPosition=cam_target.tolist(),
-            cameraUpVector=up_axis_local.tolist(),
+    def _compute_projection_matrix(self, near, far):
+        width = self.cam_width
+        height = self.cam_height
+        
+        projection_mat = [
+            2.0 * self.cam_fx / width, 0.0, 0.0, 0.0,
+            0.0, 2.0 * self.cam_fy / height, 0.0, 0.0,
+            1.0 - 2.0 * self.cam_cx / width, (2.0 * self.cam_cy / height) - 1.0, 
+            (far + near) / (near - far), -1.0,
+            0.0, 0.0, (2.0 * far * near) / (near - far), 0.0
+        ]
+        return tuple(projection_mat)
+    
+    def _get_wrist_camera_data(self, link_state):
+        link_pos = link_state[4]
+        link_ori = link_state[5]
+        
+        # Extrinsics tương đối so với tool0
+        relative_translation = [0.0, 0.025, 0.05] 
+        relative_rotation = p.getQuaternionFromEuler([0, 0, 0])
+        cam_pos, cam_ori = p.multiplyTransforms(link_pos, link_ori, relative_translation, relative_rotation)
+        self._draw_camera_axes(cam_pos, cam_ori)
+        
+        rot_matrix = np.reshape(p.getMatrixFromQuaternion(cam_ori), (3, 3))
+        
+        # Camera coordinate system: forward = z_pybullet, up = -y_pybullet
+        forward_vec = rot_matrix[:, 2] 
+        up_vec = rot_matrix[:, 1]  
+        
+        cam_target = np.array(cam_pos) + forward_vec * 0.5
+        view_mat = p.computeViewMatrix(cam_pos, cam_target.tolist(), up_vec.tolist())
+        
+        proj_mat = self._compute_projection_matrix(near=0.01, far=1.0)
+        
+        images = p.getCameraImage(
+            self.cam_width, self.cam_height,
+            viewMatrix=view_mat,
+            projectionMatrix=proj_mat,
+            renderer=p.ER_BULLET_HARDWARE_OPENGL
         )
-        proj_matrix = p.computeProjectionMatrixFOV(fov=60, aspect=width / height, nearVal=0.01, farVal=1.0)
+        rgba = np.reshape(np.array(images[2], dtype=np.float32), (self.cam_height, self.cam_width, -1))
+        return rgba[:, :, 0:3]
 
-        _, _, rgb_img, _, _ = p.getCameraImage(
-            width, height, view_matrix, proj_matrix,
-            renderer=p.ER_BULLET_HARDWARE_OPENGL,
+    def _get_world_camera_data(self):
+        cam_pos = [0.8, 0.0, 1.0] 
+        cam_target = [0.0, 0.0, 0.4] 
+        cam_up = [0, 0, 1] 
+        
+        view_mat = p.computeViewMatrix(cam_pos, cam_target, cam_up)
+        
+        proj_mat = self._compute_projection_matrix(near=0.1, far=3.0)
+        
+        images = p.getCameraImage(
+            self.cam_width, self.cam_height,
+            viewMatrix=view_mat,
+            projectionMatrix=proj_mat,
+            renderer=p.ER_BULLET_HARDWARE_OPENGL
         )
-        rgb_array = np.reshape(rgb_img, (height, width, 4))[:, :, :3].astype(np.uint8)
-        return rgb_array
+        rgba = np.reshape(np.array(images[2], dtype=np.float32), (self.cam_height, self.cam_width, -1))
+        return rgba[:, :, 0:3]
 
+    def _draw_camera_axes(self, cam_pos, cam_ori, axis_length=0.1):
+        if not hasattr(self, 'cam_axis_ids'):
+            self.cam_axis_ids = [-1, -1, -1]
+
+        rot_matrix = np.reshape(p.getMatrixFromQuaternion(cam_ori), (3, 3))
+
+        x_end = np.array(cam_pos) + rot_matrix[:, 0] * axis_length
+        y_end = np.array(cam_pos) + rot_matrix[:, 1] * axis_length
+        z_end = np.array(cam_pos) + rot_matrix[:, 2] * axis_length
+
+        if self.cam_axis_ids[0] < 0:
+            self.cam_axis_ids[0] = p.addUserDebugLine(cam_pos, x_end.tolist(), [1, 0, 0], 2)
+            self.cam_axis_ids[1] = p.addUserDebugLine(cam_pos, y_end.tolist(), [0, 1, 0], 2)
+            self.cam_axis_ids[2] = p.addUserDebugLine(cam_pos, z_end.tolist(), [0, 0, 1], 2)
+        else:
+            p.addUserDebugLine(cam_pos, x_end.tolist(), [1, 0, 0], 2, replaceItemUniqueId=self.cam_axis_ids[0])
+            p.addUserDebugLine(cam_pos, y_end.tolist(), [0, 1, 0], 2, replaceItemUniqueId=self.cam_axis_ids[1])
+            p.addUserDebugLine(cam_pos, z_end.tolist(), [0, 0, 1], 2, replaceItemUniqueId=self.cam_axis_ids[2])
+    
     def _draw_tcp_axes(self, link_state, axis_length=0.15):
         tcp_pos = link_state[4]
         tcp_orn_xyzw = link_state[5]
@@ -113,6 +173,7 @@ class PyBulletSimulatorWorker:
             info = p.getJointInfo(self.sys.robot_id, i)
             name_to_index[info[1].decode("utf-8")] = i
         self.sys.tcp_link_idx = name_to_index.get("robotiq_tcp_joint", 8)
+        self.sys.tool0_link_idx = name_to_index.get("tool0", 7)
                 
         print(f"[Communication] TCP - Link ID={self.sys.tcp_link_idx} ({[k for k,v in name_to_index.items() if v==self.sys.tcp_link_idx]})")
 
@@ -164,11 +225,14 @@ class PyBulletSimulatorWorker:
 
                 if self.sys.robot_id is not None:
                     try:
-                        link_state = p.getLinkState(self.sys.robot_id, self.sys.tcp_link_idx, computeForwardKinematics=True)
-                        self._draw_tcp_axes(link_state, axis_length=0.15)
+                        tcp_link_state = p.getLinkState(self.sys.robot_id, self.sys.tcp_link_idx, computeForwardKinematics=True)
+                        self._draw_tcp_axes(tcp_link_state, axis_length=0.15)
+
+                        tool0_link_state = p.getLinkState(self.sys.robot_id, self.sys.tool0_link_idx, computeForwardKinematics=True)
 
                         if log_counter % 6 == 0:  # ~40Hz
-                            wrist_frame = self._get_wrist_camera_frame(link_state)
+                            wrist_frame = self._get_wrist_camera_data(tool0_link_state)
+                            # world_frame = self._get_world_camera_data()
                     except p.error:
                         pass
 
