@@ -222,6 +222,18 @@ class PyBulletSimulatorWorker:
         print("[Communication] PyBullet simulation started")
         log_counter = 0
 
+        # Tune gripper finger contact/damping parameters to improve grasp stability
+        try:
+            for idx in slave_indices + [master_idx]:
+                try:
+                    p.changeDynamics(self.sys.robot_id, idx, lateralFriction=1.2, spinningFriction=0.01,
+                                     rollingFriction=0.001, restitution=0.0, contactProcessingThreshold=0.001)
+                except Exception:
+                    # ignore if changeDynamics fails for any index
+                    pass
+        except Exception:
+            pass
+
         try:
             while self.sys.is_running:
                 joints, _ts = self.sys.shared_joints.read()
@@ -277,6 +289,7 @@ class PyBulletSimulatorWorker:
                         contact_detected=contact_detected,
                     )
 
+                    # drive master toward the computed target
                     p.setJointMotorControl2(
                         self.sys.robot_id,
                         master_idx,
@@ -286,14 +299,15 @@ class PyBulletSimulatorWorker:
                         maxVelocity=4.0,
                     )
 
-                    target_slave_positions = mimic_multipliers * actual_master_pos
+                    # slaves should follow the master's TARGET to avoid oscillation/lag
+                    target_slave_positions = (mimic_multipliers * target_master_pos).tolist()
                     p.setJointMotorControlArray(
                         self.sys.robot_id,
                         slave_indices,
                         p.POSITION_CONTROL,
-                        targetPositions=target_slave_positions.tolist(),
+                        targetPositions=target_slave_positions,
                         forces=[current_force] * len(slave_indices),
-                        positionGains=np.ones(len(slave_indices)),
+                        positionGains=[0.8] * len(slave_indices),
                     )
 
                     log_counter += 1
