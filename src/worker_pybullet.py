@@ -82,11 +82,11 @@ class PyBulletSimulatorWorker:
             projectionMatrix=proj_mat,
             renderer=p.ER_BULLET_HARDWARE_OPENGL
         )
-        rgba = np.reshape(np.array(images[2], dtype=np.float32), (self.cam_height, self.cam_width, -1))
+        rgba = np.reshape(np.array(images[2], dtype=np.uint8), (self.cam_height, self.cam_width, -1))
         return rgba[:, :, 0:3]
 
     def _get_world_camera_data(self):
-        cam_pos = [0.8, 0.0, 1.0] 
+        cam_pos = [1.5, 0.0, 0.8] 
         cam_target = [0.0, 0.0, 0.4] 
         cam_up = [0, 0, 1] 
         
@@ -100,7 +100,7 @@ class PyBulletSimulatorWorker:
             projectionMatrix=proj_mat,
             renderer=p.ER_BULLET_HARDWARE_OPENGL
         )
-        rgba = np.reshape(np.array(images[2], dtype=np.float32), (self.cam_height, self.cam_width, -1))
+        rgba = np.reshape(np.array(images[2], dtype=np.uint8), (self.cam_height, self.cam_width, -1))
         return rgba[:, :, 0:3]
 
     def _draw_camera_axes(self, cam_pos, cam_ori, axis_length=0.1):
@@ -158,6 +158,7 @@ class PyBulletSimulatorWorker:
     def run(self):
         print("[Communication] Initializing...")
         p.connect(p.GUI)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setPhysicsEngineParameter(numSolverIterations=150, enableConeFriction=1)
         p.setGravity(0, 0, -9.81)
@@ -230,9 +231,16 @@ class PyBulletSimulatorWorker:
 
                         tool0_link_state = p.getLinkState(self.sys.robot_id, self.sys.tool0_link_idx, computeForwardKinematics=True)
 
-                        if log_counter % 6 == 0:  # ~40Hz
+                        if log_counter % 16 == 0:  # 15Hz
                             wrist_frame = self._get_wrist_camera_data(tool0_link_state)
-                            # world_frame = self._get_world_camera_data()
+                            world_frame = self._get_world_camera_data()
+
+                            wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
+                            world_bgr = cv2.cvtColor(world_frame, cv2.COLOR_RGB2BGR)
+
+                            combined_frame = np.vstack((wrist_bgr, world_bgr))
+                            self.sys.shared_pybullet_frame.write(combined_frame)
+
                     except p.error:
                         pass
 
@@ -293,4 +301,10 @@ class PyBulletSimulatorWorker:
                 p.stepSimulation()
                 time.sleep(1.0 / 240.0)
         finally:
-            print("[Communication] Closing ...")
+            print("[Communication] Closing OpenCV windows...")
+            # cv2.destroyAllWindows()
+            
+            # for _ in range(5):
+            #     cv2.waitKey(1)
+                
+            print("[Communication] Closing PyBullet...")

@@ -20,6 +20,7 @@ class TeleopSystem:
         self.shared_pose = SharedPoseState()
         self.shared_joints = SharedJointState()
         self.shared_frame = SharedFrameState()
+        self.shared_pybullet_frame = SharedFrameState()
         self.shared_log = SharedLogState()
         
         self.is_running = False
@@ -102,13 +103,22 @@ def main():
     system.start_all()
     
     win_name = "Teleoperation Pipeline"
+    robot_vision_win = "Robot Vision (Top: Wrist | Bottom: World)"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
+    cv2.namedWindow(robot_vision_win, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(robot_vision_win, 320, 480)
     btn_w, btn_h = 300, 50
     space_time = 0.3
+    last_pybullet_frame = None
+    last_pybullet_frame_display = None
     
     try:
         while True:
             display_frame = system.shared_frame.read()
+            pybullet_frame = system.shared_pybullet_frame.read()
+            if pybullet_frame is not None:
+                last_pybullet_frame = pybullet_frame
+                last_pybullet_frame_display = cv2.resize(pybullet_frame, (320, 480), interpolation=cv2.INTER_LINEAR)
             t_current = time.time()
 
             if system.teleop_active:
@@ -136,7 +146,10 @@ def main():
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
                 cv2.imshow(win_name, display_frame)
-                
+
+            if last_pybullet_frame_display is not None:
+                cv2.imshow(robot_vision_win, last_pybullet_frame_display)
+
             key = cv2.waitKey(20) & 0xFF 
             if key == 27:  # ESC 
                 break
@@ -148,6 +161,7 @@ def main():
         print("[SYSTEM] KeyboardInterrupt")
     finally:
         cv2.destroyAllWindows()
+        cv2.waitKey(1)
         system.stop_all()
 
 if __name__ == "__main__":
