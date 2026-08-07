@@ -239,9 +239,10 @@ class PyBulletSimulatorWorker:
                     p.changeDynamics(self.sys.robot_id, idx, lateralFriction=1.6, spinningFriction=0.005,
                                         rollingFriction=0.0005, restitution=0.0, contactProcessingThreshold=0.001)
                 except Exception:
-                    # ignore if changeDynamics fails for any index
+                    print (f"[Communication] Failed to change dynamics for joint index {idx}")
                     pass
         except Exception:
+            print("[Communication] Failed to change dynamics for one or more joints")
             pass
 
         try:
@@ -277,21 +278,8 @@ class PyBulletSimulatorWorker:
                     for idx, target, max_vel in zip(self.sys.arm_indices, arm_targets, arm_max_vel):
                         p.setJointMotorControl2(self.sys.robot_id, idx, p.POSITION_CONTROL,targetPosition=target, force=200, 
                                                 maxVelocity=max_vel)
-                    current_pybullet_angles = [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices]
-                    
-                    # p.setJointMotorControl2(self.sys.robot_id, master_idx, p.POSITION_CONTROL, targetPosition=gripper_target, 
-                    #                         force=50, maxVelocity=5.0)
+                        
                     actual_master_pos = p.getJointState(self.sys.robot_id, master_idx)[0]
-
-                    # target_slave_positions = mimic_multipliers * actual_master_pos
-                    # p.setJointMotorControlArray(
-                    #     self.sys.robot_id, 
-                    #     slave_indices, 
-                    #     p.POSITION_CONTROL, 
-                    #     targetPositions=target_slave_positions.tolist(),
-                    #     forces=[50] * len(slave_indices), 
-                    #     positionGains=np.ones(len(slave_indices)) 
-                    # )
 
                     contact_detected = self._has_box_contact()
                     if gripper_target > 0.5 and contact_detected:
@@ -338,11 +326,5 @@ class PyBulletSimulatorWorker:
                 sleep_time = max(0.0, (1.0/240.0) - elapsed)
                 time.sleep(sleep_time)
 
-        finally:
-            print("[Communication] Closing OpenCV windows...")
-            # cv2.destroyAllWindows()
-            
-            # for _ in range(5):
-            #     cv2.waitKey(1)
-                
+        finally:                
             print("[Communication] Closing PyBullet...")
