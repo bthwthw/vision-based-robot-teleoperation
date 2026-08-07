@@ -186,15 +186,19 @@ class PyBulletSimulatorWorker:
             name_to_index[info[1].decode("utf-8")] = i
         self.sys.tcp_link_idx = name_to_index.get("robotiq_tcp_joint", 8)
         self.sys.tool0_link_idx = name_to_index.get("tool0", 7)
-                
         print(f"[Communication] TCP - Link ID={self.sys.tcp_link_idx} ({[k for k,v in name_to_index.items() if v==self.sys.tcp_link_idx]})")
 
-        gripper_joint_names = ["left_outer_finger_joint", "left_inner_knuckle_joint",
-                               "left_inner_finger_joint", "right_outer_knuckle_joint",
-                               "right_inner_knuckle_joint", "right_inner_finger_joint", "right_outer_finger_joint"] 
-        for name in gripper_joint_names:
+        gripper_signed_limits = {
+            "finger_joint":              (0.0, 0.725),    
+            "left_inner_knuckle_joint":  (0.0, 0.8757),   
+            "right_inner_finger_joint":  (0.0, 0.8757),   
+            "left_inner_finger_joint":   (-0.8757, 0.0),   
+            "right_outer_knuckle_joint": (-0.8757, 0.0),   
+            "right_inner_knuckle_joint": (-0.8757, 0.0),   
+        }
+        for name, (lo, hi) in gripper_signed_limits.items():
             if name in name_to_index:
-                p.changeDynamics(self.sys.robot_id, name_to_index[name], jointLowerLimit=-3.14, jointUpperLimit=3.14)
+                p.changeDynamics(self.sys.robot_id, name_to_index[name], jointLowerLimit=lo, jointUpperLimit=hi)
 
         for i in range(p.getNumJoints(self.sys.robot_id)):
             p.changeDynamics(self.sys.robot_id, i, lateralFriction=0.6, spinningFriction=0.2,
