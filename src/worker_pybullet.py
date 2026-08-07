@@ -10,17 +10,23 @@ from src.module_scene import SceneManager
 
 def compute_gripper_control(current_pos, gripper_target, contact_detected=False,
                            open_limit=0.0, close_limit=0.71,
-                           step=0.02, close_force=28.0, open_force=30.0, hold_force=8.0,
-                           contact_step=0.001):
+                           step=0.02, close_force=32.0, open_force=30.0, hold_force=12.0,
+                           contact_step=0.001, contact_steps_after_touch=3, contact_phase=0):
     if gripper_target <= 0.5:
         target = max(current_pos - step, open_limit)
         force = open_force
         holding = False
     else:
         if contact_detected:
-            target = min(current_pos + contact_step, close_limit)
-            force = hold_force
-            holding = True
+            if contact_phase < contact_steps_after_touch:
+                # continue closing a little bit after first contact
+                target = min(current_pos + contact_step, close_limit)
+                force = hold_force
+                holding = True
+            else:
+                target = current_pos
+                force = hold_force
+                holding = True
         else:
             target = min(current_pos + step, close_limit)
             force = close_force
@@ -33,6 +39,9 @@ class PyBulletSimulatorWorker:
         self.sys = system
         self.axis_ids = [-1, -1, -1]
         self.scene_manager = SceneManager(table_top_z=0.4)
+        self.gripper_contact_phase = 0
+        self.wrist_bgr = None
+        self.world_bgr = None
 
         # rs intrinsics 
         self.cam_width = 640
@@ -226,8 +235,9 @@ class PyBulletSimulatorWorker:
         try:
             for idx in slave_indices + [master_idx]:
                 try:
-                    p.changeDynamics(self.sys.robot_id, idx, lateralFriction=1.2, spinningFriction=0.01,
-                                     rollingFriction=0.001, restitution=0.0, contactProcessingThreshold=0.001)
+                    # increase lateral friction for better hold; keep low spinning/rolling frictions
+                    p.changeDynamics(self.sys.robot_id, idx, lateralFriction=1.6, spinningFriction=0.005,
+                                        rollingFriction=0.0005, restitution=0.0, contactProcessingThreshold=0.001)
                 except Exception:
                     # ignore if changeDynamics fails for any index
                     pass
@@ -247,13 +257,14 @@ class PyBulletSimulatorWorker:
 
                         if log_counter % 16 == 0:  # 15Hz
                             wrist_frame = self._get_wrist_camera_data(tool0_link_state)
-                            wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
+                            self.wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
                         
                         if log_counter % 16 == 8:  # 15Hz
                             world_frame = self._get_world_camera_data()
-                            world_bgr = cv2.cvtColor(world_frame, cv2.COLOR_RGB2BGR)
+                            self.world_bgr = cv2.cvtColor(world_frame, cv2.COLOR_RGB2BGR)
 
-                            combined_frame = np.vstack((wrist_bgr, world_bgr))
+                        if self.wrist_bgr is not None and self.world_bgr is not None:
+                            combined_frame = np.vstack((self.wrist_bgr, self.world_bgr))
                             self.sys.shared_pybullet_frame.write(combined_frame)
 
                     except p.error:
@@ -283,10 +294,16 @@ class PyBulletSimulatorWorker:
                     # )
 
                     contact_detected = self._has_box_contact()
+                    if gripper_target > 0.5 and contact_detected:
+                        self.gripper_contact_phase = min(self.gripper_contact_phase + 1, 5)
+                    else:
+                        self.gripper_contact_phase = 0
+
                     target_master_pos, current_force, _ = compute_gripper_control(
                         current_pos=actual_master_pos,
                         gripper_target=gripper_target,
                         contact_detected=contact_detected,
+                        contact_phase=self.gripper_contact_phase,
                     )
 
                     # drive master toward the computed target
