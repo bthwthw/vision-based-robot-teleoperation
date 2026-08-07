@@ -1,0 +1,31 @@
+
+=== SYSTEM FREQUENCY & PERFORMANCE ANALYSIS ===
+File   : RT_20260807_142820.csv
+Total Rows : 1109
+
+[OVERALL SYSTEM LOOP FREQUENCY]
+  Mean Frequency  : 8.85 Hz
+  Median Frequency: 8.00 Hz
+  Min Frequency   : 0.26 Hz
+  Max Frequency   : 65.09 Hz
+  --
+  Mean Loop Time  : 187.60 ms
+  Median Loop Time: 124.98 ms
+  Max Loop Time   : 3804.31 ms (Spike)
+  Std Loop Time   : 246.31 ms
+  Lag Spikes (>100ms) : 785 frames (70.8%)
+
+[CUROBO IK EXECUTION TIME]
+  Mean Latency    : 118.61 ms
+  Median Latency  : 70.41 ms
+  Max Latency     : 516.18 ms
+  Min Latency     : 24.10 ms
+  Std Latency     : 110.44 ms
+  IK Spikes (>100ms)  : 205 frames (22.6%)
+
+[OUTSIDE CUROBO TIME (Shared Mem, Sleep, Logging)]
+  Mean Outside Time : 91.01 ms
+  Median Outside Time:59.86 ms
+  Max Outside Time  : 3723.38 ms
+  Std Outside Time  : 236.75 ms
+  Outside Spikes (>50ms): 659 frames (72.8%)
