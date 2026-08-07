@@ -74,3 +74,18 @@ class SharedBoxPoseState:
     def read(self):
         with self._lock:
             return self._poses
+
+class SharedPbState:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._pbstate = None
+        self._timestamp = 0.0
+
+    def write(self, pbstate, timestamp):
+        with self._lock:
+            self._pbstate = pbstate
+            self._timestamp = timestamp
+
+    def read(self):
+        with self._lock:
+            return self._pbstate, self._timestamp

@@ -2,7 +2,6 @@ import math
 import time
 from pathlib import Path
 import numpy as np
-import pybullet as p
 import torch
 from scipy.spatial.transform import Rotation as R
 
@@ -22,7 +21,7 @@ class cuRoboControllerWorker:
         print("[Controller] Initializing...")
         tensor_args = TensorDeviceType()
         robot_file = "assets/abb_irb1200_509_gripper/abb_robotiq.yml"
-        
+
         yml_data = load_yaml(robot_file)
         kinematics_cfg = yml_data["robot_cfg"]["kinematics"]
         kinematics_cfg["urdf_path"] = str(Path(kinematics_cfg["urdf_path"]).resolve())
@@ -39,7 +38,7 @@ class cuRoboControllerWorker:
             }
         }
         world_cfg = WorldConfig.from_dict(world_config)
-        
+
         robot_cfg = RobotConfig.from_dict(yml_data["robot_cfg"], tensor_args)
         ik_config = IKSolverConfig.load_from_robot_config(
             robot_cfg, world_cfg, rotation_threshold=0.05, position_threshold=0.005,
@@ -49,31 +48,31 @@ class cuRoboControllerWorker:
         )
         ik_solver = IKSolver(ik_config)
         print("[Controller] cuRobo IK Solver ready")
-        
+
         retract_q = ik_solver.robot_config.kinematics.cspace.retract_config
         retract_q = retract_q.detach().cpu().numpy()
         custom_home_deg = [0.0, 0.0, 0.0, 0.0, 90.0, 90.0]
         retract_list = [math.radians(deg) for deg in custom_home_deg]
-        
+
         retract_tensor = torch.tensor([retract_list], dtype=torch.float32, device=tensor_args.device)
         retract_fk = ik_solver.fk(retract_tensor)
-        
+
         robot_base_pos = retract_fk.ee_position[0].cpu().numpy().tolist()
         robot_base_quat_wxyz = retract_fk.ee_quaternion[0].cpu().numpy().tolist()
-        
+
         print(f"[Controller] TCP init: Pos={[round(float(p), 3) for p in robot_base_pos]}, Quat={[round(float(q), 3) for q in robot_base_quat_wxyz]}")
 
         print("[Controller] cuRobo Warm-up...")
         dummy_pos = torch.tensor([robot_base_pos], dtype=torch.float32, device=tensor_args.device)
         dummy_quat = torch.tensor([robot_base_quat_wxyz], dtype=torch.float32, device=tensor_args.device)
         dummy_goal = Pose(dummy_pos, dummy_quat)
-        
-        for _ in range(10): 
+
+        for _ in range(10):
             ik_solver.solve_batch(dummy_goal)
 
         print("[Controller] Waiting for PyBullet scene...")
         if not self.sys.scene_ready.wait(timeout=15.0):
-            print("[Controller WARN] Using placeholder obstacles") 
+            print("[Controller WARN] Using placeholder obstacles")
         else:
             box_poses = self.sys.shared_box_poses.read()
             if box_poses:
@@ -87,12 +86,10 @@ class cuRoboControllerWorker:
                 print(f"[Controller] Synced {len(box_poses)} box poses into cuRobo collision world")
 
         self.sys.system_ready = True
-        
         print("[Controller] cuRobo Warm-up done")
-        self.sys.system_ready = True
 
-        hand_start_pos = None                
-        hand_start_rot = None  
+        hand_start_pos = None
+        hand_start_rot = None
         last_q_solution = None
 
         robot_start_rot = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
@@ -100,20 +97,29 @@ class cuRoboControllerWorker:
         last_robot_target_rot = robot_start_rot
 
         core_mapping = [
-            [ -1,  0,  0],
-            [  0, -1,  0],
-            [  0,  0,  1]
+            [-1, 0, 0],
+            [0, -1, 0],
+            [0, 0, 1]
         ]
         gain = 1.5
         R_map = R.from_matrix(core_mapping)
         P_map = np.array(core_mapping) * gain
-        
+
+        has_pb_state = hasattr(self.sys, "shared_pb_state")
+        if not has_pb_state:
+            print("[Controller WARN] self.sys.shared_pb_state not found")
+
         try:
             while self.sys.is_running:
+                t_loop_start = time.perf_counter()
+
+                t0 = time.perf_counter()
                 pose_dict, ts = self.sys.shared_pose.read()
+                t_read_pose_ms = (time.perf_counter() - t0) * 1000.0
+
                 if pose_dict is None or pose_dict["position"] is None:
                     time.sleep(0.005)
-                    continue 
+                    continue
 
                 if self.sys.request_toggle_teleop:
                     self.sys.teleop_active = not self.sys.teleop_active
@@ -122,10 +128,10 @@ class cuRoboControllerWorker:
                     if self.sys.teleop_active:
                         raw_hand_pos = pose_dict["position"]
                         hand_start_pos = (raw_hand_pos.tolist() if isinstance(raw_hand_pos, np.ndarray) else list(raw_hand_pos))[:3]
-                        
+
                         quat_wxyz = pose_dict["quaternion"]
                         hand_start_rot = R.from_quat([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
-                        
+
                         robot_base_pos = last_robot_target_pos
                         robot_start_rot = last_robot_target_rot
                         print(f"[Controller] -> START CONTROL")
@@ -139,48 +145,47 @@ class cuRoboControllerWorker:
                         self.sys.shared_joints.write(q_log + [gripper_opening], time.time())
                     time.sleep(0.01)
                     continue
-                
+
                 raw_hand_pos = pose_dict["position"]
                 raw_hand_pos = raw_hand_pos.tolist() if isinstance(raw_hand_pos, np.ndarray) else list(raw_hand_pos)
-                
+
                 quat_wxyz = pose_dict["quaternion"]
                 quat_wxyz = quat_wxyz.tolist() if isinstance(quat_wxyz, np.ndarray) else list(quat_wxyz)
                 current_hand_rot = R.from_quat([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
-                
+
                 delta_hand_cam = np.array([
                     raw_hand_pos[0] - hand_start_pos[0],
                     raw_hand_pos[1] - hand_start_pos[1],
                     raw_hand_pos[2] - hand_start_pos[2]
                 ])
-                
+
                 delta_robot_base = P_map @ delta_hand_cam
-                
+
                 R_tcp_current = robot_start_rot.as_matrix()
-                
+
                 delta_robot_tcp_aligned = R_tcp_current.dot(delta_robot_base)
-                
+
                 robot_target_pos = [
-                    robot_base_pos[0] + delta_robot_tcp_aligned[0], 
-                    robot_base_pos[1] + delta_robot_tcp_aligned[1], 
+                    robot_base_pos[0] + delta_robot_tcp_aligned[0],
+                    robot_base_pos[1] + delta_robot_tcp_aligned[1],
                     robot_base_pos[2] + delta_robot_tcp_aligned[2]
                 ]
 
                 delta_rot_cam = current_hand_rot * hand_start_rot.inv()
                 delta_rot_rob = R_map * delta_rot_cam * R_map.inv()
-                
-                # robot_start_rot = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
+
                 robot_target_rot = robot_start_rot * delta_rot_rob
-                
+
                 target_quat_xyzw = (robot_target_rot).as_quat()
                 robot_target_quat = [target_quat_xyzw[3], target_quat_xyzw[0], target_quat_xyzw[1], target_quat_xyzw[2]]
 
                 last_robot_target_pos = robot_target_pos
                 last_robot_target_rot = robot_target_rot
-                
+
                 goal_pos_tensor = torch.tensor([robot_target_pos], dtype=torch.float32, device=tensor_args.device)
                 goal_quat_tensor = torch.tensor([robot_target_quat], dtype=torch.float32, device=tensor_args.device)
                 goal = Pose(goal_pos_tensor, goal_quat_tensor)
-                
+
                 seed_config = None
                 if last_q_solution is not None:
                     seed_config = last_q_solution.view(1, 1, -1).repeat(1, ik_config.num_seeds, 1)
@@ -188,18 +193,19 @@ class cuRoboControllerWorker:
                 t_start = time.time()
                 result = ik_solver.solve_batch(goal, seed_config=seed_config)
                 curobo_latency_ms = (time.time() - t_start) * 1000.0
-                
+
                 gripper_opening = 1.0 if pose_dict["gripper"] == "Close" else 0.0
                 is_success = bool(result.success[0].item()) if hasattr(result.success[0], "item") else bool(result.success[0])
-                
+
                 q_logged = [0.0] * 6
                 if is_success:
                     q_solution = result.solution[0]
-                    if hasattr(q_solution, "cpu"): q_solution = q_solution.cpu().numpy()
+                    if hasattr(q_solution, "cpu"):
+                        q_solution = q_solution.cpu().numpy()
                     q_solution = np.atleast_1d(q_solution).flatten().tolist()
                     print(f"[Controller-IK-OK] Joints (cuRobo): {[round(float(j), 3) for j in q_solution[:6]]}")
                     q_logged = q_solution[:6]
-                    
+
                     self.sys.shared_joints.write(q_solution[:6] + [gripper_opening], time.time())
                     last_q_solution = torch.tensor(q_solution[:6], dtype=torch.float32, device=tensor_args.device)
                 else:
@@ -208,22 +214,26 @@ class cuRoboControllerWorker:
                     if last_joints is not None and len(last_joints) >= 7:
                         q_logged = last_joints[:6]
                         self.sys.shared_joints.write(last_joints[:6] + [gripper_opening], time.time())
-                
-                pb_pos_logged, pb_quat_logged = [0.0]*3, [1.0, 0.0, 0.0, 0.0]
-                pb_q_logged = [0.0]*6
-                
-                if self.sys.robot_id is not None and p.isConnected():
-                    try:
-                        link_state = p.getLinkState(self.sys.robot_id, self.sys.tcp_link_idx, computeForwardKinematics=True)
-                        pb_pos_logged = list(link_state[4])
-                        xyzw = link_state[5]
-                        pb_quat_logged = [xyzw[3], xyzw[0], xyzw[1], xyzw[2]]
-                        pb_q_logged = [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices]
-                    except p.error:
-                        pass
-                
+
+                t_pb0 = time.perf_counter()
+                pb_pos_logged, pb_quat_logged = [0.0] * 3, [1.0, 0.0, 0.0, 0.0]
+                pb_q_logged = [0.0] * 6
+                if has_pb_state:
+                    pb_state, _pb_ts = self.sys.shared_pb_state.read()
+                    if pb_state is not None:
+                        pb_pos_logged = pb_state.get("tcp_pos", pb_pos_logged)
+                        pb_quat_logged = pb_state.get("tcp_quat_wxyz", pb_quat_logged)
+                        pb_q_logged = pb_state.get("q", pb_q_logged)
+                t_pb_query_ms = (time.perf_counter() - t_pb0) * 1000.0
+
+                t_sleep0 = time.perf_counter()
+                time.sleep(0.01)
+                t_sleep_ms = (time.perf_counter() - t_sleep0) * 1000.0
+                t_loop_total_ms = (time.perf_counter() - t_loop_start) * 1000.0
+
+                t_log0 = time.perf_counter()
                 ctrl_log = {
-                    "frame_timestamp_s": ts, 
+                    "frame_timestamp_s": ts,
                     "curobo_time_ms": curobo_latency_ms,
                     "ik_success": 1 if is_success else 0,
                     "tgt_tcp_pos": robot_target_pos,
@@ -231,10 +241,16 @@ class cuRoboControllerWorker:
                     "pb_tcp_pos": pb_pos_logged,
                     "pb_tcp_quat": pb_quat_logged,
                     "q_tgt": q_logged,
-                    "pb_q": pb_q_logged
+                    "pb_q": pb_q_logged,
+                    "t_read_pose_ms": t_read_pose_ms,
+                    "t_pb_query_ms": t_pb_query_ms,
+                    "t_sleep_ms": t_sleep_ms,
+                    "t_loop_total_ms": t_loop_total_ms,
                 }
                 self.sys.shared_log.write_control(ctrl_log)
-                time.sleep(0.01)
-                
+                t_log_enqueue_ms = (time.perf_counter() - t_log0) * 1000.0
+                if t_log_enqueue_ms > 5.0:
+                    print(f"[Controller WARN] write_control enqueue mất {t_log_enqueue_ms:.1f}ms (bất thường)")
+
         finally:
             print("[Controller] Closing ...")

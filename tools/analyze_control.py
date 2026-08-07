@@ -11,8 +11,13 @@ def _fix_quaternion_continuity(q):
 
 def analyze_control(csv_path):
     if not os.path.exists(csv_path):
-        print(f"[CONTROL ANALYZER ERROR] File not found: {csv_path}")
-        return
+        alt_path = csv_path.replace(".csv", "_control.csv")
+        if os.path.exists(alt_path):
+            print(f"[CONTROL ANALYZER INFO] {csv_path} not found, using {alt_path} instead")
+            csv_path = alt_path
+        else:
+            print(f"[CONTROL ANALYZER ERROR] File not found: {csv_path}")
+            return
 
     try:
         df = pd.read_csv(csv_path).dropna(subset=["curobo_time_ms", "ik_success"]).reset_index(drop=True)
@@ -87,5 +92,6 @@ def analyze_control(csv_path):
         print(f"[CONTROL ANALYZER ERROR] Analysis failed: {e}\n")
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else "logs\RT_20260729_132013.csv"
+    default_path = os.path.join("logs", "RT_20260729_132013_control.csv")
+    path = sys.argv[1] if len(sys.argv) > 1 else default_path
     analyze_control(path)

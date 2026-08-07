@@ -4,10 +4,6 @@ import numpy as np
 import pandas as pd
 
 def _fix_quaternion_continuity(q):
-    """
-    Quaternions q and -q represent the SAME rotation (double cover).
-    This function forces consecutive quaternions to the same sign branch to ensure continuity.
-    """
     q = q.copy()
     for i in range(1, len(q)):
         if np.dot(q[i - 1], q[i]) < 0:
@@ -15,11 +11,6 @@ def _fix_quaternion_continuity(q):
     return q
 
 def estimate_lag(t, raw, filt, max_lag_s=0.5):
-    """
-    Estimate the lag (seconds) between raw and filtered signals using cross-correlation.
-    Search is bounded by +-max_lag_s to prevent false peak detection.
-    Returns a positive value if the filtered signal lags behind the raw signal.
-    """
     raw = np.asarray(raw, dtype=float) - np.mean(raw)
     filt = np.asarray(filt, dtype=float) - np.mean(filt)
     
@@ -42,13 +33,15 @@ def estimate_lag(t, raw, filt, max_lag_s=0.5):
     best_lag_idx = lags[mask][np.argmax(corr[mask])]
     return best_lag_idx * dt
 
-def analyze(csv_path):
-    """
-    Analyze the CSV data, print to console, and export a sidecar text report.
-    """
+def analyze_vision(csv_path):
     if not os.path.exists(csv_path):
-        print(f"[FILTER ANALYZER ERROR] File not found: {csv_path}")
-        return
+        alt_path = csv_path.replace(".csv", "_vision.csv")
+        if os.path.exists(alt_path):
+            print(f"[FILTER ANALYZER INFO] Không thấy {csv_path}, dùng {alt_path} thay thế")
+            csv_path = alt_path
+        else:
+            print(f"[FILTER ANALYZER ERROR] File not found: {csv_path}")
+            return
 
     try:
         df = pd.read_csv(csv_path).dropna(subset=["raw_x", "filt_x", "raw_qw", "filt_qw", "raw_gripper_dist_mm"]).reset_index(drop=True)
@@ -138,7 +131,6 @@ def analyze(csv_path):
         else:
             log_print("  [SUCCESS] All spikes were successfully blocked and saturated by the filter.")
         
-
         # Export to TXT
         full_report = "\n".join(report_lines)
         txt_path = csv_path.replace(".csv", "_analysis.txt")
@@ -151,5 +143,6 @@ def analyze(csv_path):
         print(f"[FILTER ANALYZER ERROR] Analysis failed: {e}\n")
 
 if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else "logs\RT_20260729_132013.csv"
-    analyze(path)
+    default_path = os.path.join("logs", "RT_20260729_132013_vision.csv")
+    path = sys.argv[1] if len(sys.argv) > 1 else default_path
+    analyze_vision(path)

@@ -76,7 +76,7 @@ class PyBulletSimulatorWorker:
         
         rot_matrix = np.reshape(p.getMatrixFromQuaternion(cam_ori), (3, 3))
         
-        # Camera coordinate system: forward = z_pybullet, up = -y_pybullet
+        # Camera coordinate system: forward = z_pybullet, up = y_pybullet
         forward_vec = rot_matrix[:, 2] 
         up_vec = rot_matrix[:, 1]  
         
@@ -268,6 +268,13 @@ class PyBulletSimulatorWorker:
                     try:
                         tcp_link_state = p.getLinkState(self.sys.robot_id, self.sys.tcp_link_idx, computeForwardKinematics=True)
                         self._draw_tcp_axes(tcp_link_state, axis_length=0.15)
+                        pb_state = {
+                            "tcp_pos": list(tcp_link_state[4]),
+                            "tcp_quat_wxyz": [tcp_link_state[5][3], tcp_link_state[5][0],
+                                                tcp_link_state[5][1], tcp_link_state[5][2]],
+                            "q": [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices],
+                        }
+                        self.sys.shared_pb_state.write(pb_state, time.time())
 
                         tool0_link_state = p.getLinkState(self.sys.robot_id, self.sys.tool0_link_idx, computeForwardKinematics=True)
 
