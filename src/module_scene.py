@@ -6,15 +6,16 @@ class SceneManager:
         self.table_id = None
         self.box_ids = []
         self.table_top_z = table_top_z
+        self.table_half_extents = [0.3, 0.5, 0.05] 
+        self.box_half_size_range = (0.015, 0.025) 
 
     def setup_pick_and_place_scene(self):
         print(f"[Scene INFO] INITIALIZING... Table height: {self.table_top_z} m")
 
-        table_half_extents = [0.3, 0.5, 0.05] 
-        table_col_id = p.createCollisionShape(p.GEOM_BOX, halfExtents=table_half_extents)
-        table_vis_id = p.createVisualShape(p.GEOM_BOX, halfExtents=table_half_extents, rgbaColor=[0.6, 0.5, 0.4, 1])
+        table_col_id = p.createCollisionShape(p.GEOM_BOX, halfExtents=self.table_half_extents)
+        table_vis_id = p.createVisualShape(p.GEOM_BOX, halfExtents=self.table_half_extents, rgbaColor=[0.6, 0.5, 0.4, 1])
         
-        z_center_table = self.table_top_z - table_half_extents[2]
+        z_center_table = self.table_top_z - self.table_half_extents[2]
         
         self.table_id = p.createMultiBody(
             baseMass=0, 
@@ -48,3 +49,8 @@ class SceneManager:
             self.box_ids.append(box_id)
             
         print(f"[Scene INFO] Import {len(self.box_ids)} boxes")
+
+    def get_table_collision_cuboid(self):
+        z_center = self.table_top_z - self.table_half_extents[2]
+        dims = [d * 2 for d in self.table_half_extents]
+        return {"dims": dims, "pose": [0.45, 0.0, z_center, 1, 0, 0, 0]}

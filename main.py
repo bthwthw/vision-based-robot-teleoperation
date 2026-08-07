@@ -4,7 +4,7 @@ import time
 from datetime import datetime
 import cv2
 
-from src.shared_state import SharedPoseState, SharedJointState, SharedFrameState, SharedLogState
+from src.shared_state import SharedPoseState, SharedJointState, SharedFrameState, SharedLogState, SharedBoxPoseState
 from src.worker_perception import PerceptionWorker
 from src.worker_curobo import cuRoboControllerWorker
 from src.worker_pybullet import PyBulletSimulatorWorker
@@ -22,6 +22,8 @@ class TeleopSystem:
         self.shared_frame = SharedFrameState()
         self.shared_pybullet_frame = SharedFrameState()
         self.shared_log = SharedLogState()
+        self.shared_box_poses = SharedBoxPoseState()
+        self.scene_ready = threading.Event()  
         
         self.is_running = False
         self.threads = []

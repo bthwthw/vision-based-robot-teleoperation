@@ -140,7 +140,28 @@
       <material name="yellow"/>
     </visual>
   </link>
-  <link name="tool0"/>
+
+  <link name="tool0">
+  <inertial>
+    <mass value="0.001"/>
+    <inertia ixx="1e-9" ixy="0" ixz="0" iyy="1e-9" iyz="0" izz="1e-9"/>
+  </inertial>
+  </link>
+
+  <link name="base">
+  <inertial>
+    <mass value="0.001"/>
+    <inertia ixx="1e-9" ixy="0" ixz="0" iyy="1e-9" iyz="0" izz="1e-9"/>
+  </inertial>
+  </link>
+
+  <link name="robotiq_tcp">
+  <inertial>
+    <mass value="0.001"/>
+    <inertia ixx="1e-9" ixy="0" ixz="0" iyy="1e-9" iyz="0" izz="1e-9"/>
+  </inertial>
+  </link>
+  
   <!-- end of link list -->
   <!-- joint list -->
   <joint name="joint_1" type="revolute">
@@ -198,9 +219,8 @@
     <origin rpy="0 1.57079632679 0" xyz="0 0 0"/>
   </joint>
   <!-- end of joint list -->
-  
+
   <!-- ROS base_link to ABB World Coordinates transform -->
-  <link name="base"/>
   <joint name="base_link-base" type="fixed">
     <origin rpy="0 0 0" xyz="0 0 0"/>
     <parent link="base_link"/>
@@ -259,7 +279,6 @@
     <child link="robotiq_tcp"/>
     <origin xyz="0 0 0.16" rpy="0 0 0"/>
   </joint>
-  <link name="robotiq_tcp"/>
   <link
     name="left_outer_knuckle">
     <inertial>

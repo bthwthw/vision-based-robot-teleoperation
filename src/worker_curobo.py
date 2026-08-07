@@ -11,6 +11,8 @@ from curobo.types.math import Pose
 from curobo.types.robot import RobotConfig
 from curobo.util_file import load_yaml
 from curobo.wrap.reacher.ik_solver import IKSolver, IKSolverConfig
+from curobo.geom.types import WorldConfig
+from curobo.geom.sdf.world import CollisionCheckerType
 
 class cuRoboControllerWorker:
     def __init__(self, system):
@@ -25,11 +27,24 @@ class cuRoboControllerWorker:
         kinematics_cfg = yml_data["robot_cfg"]["kinematics"]
         kinematics_cfg["urdf_path"] = str(Path(kinematics_cfg["urdf_path"]).resolve())
         kinematics_cfg["asset_root_path"] = str(Path(kinematics_cfg["asset_root_path"]).resolve())
+
+        BOX_COLLISION_SIZE = [0.06, 0.06, 0.06]
+
+        world_config = {
+            "cuboid": {
+                "table": {"dims": [0.6, 1.0, 0.1], "pose": [0.45, 0.0, 0.35, 1, 0, 0, 0]},
+                "box_0": {"dims": BOX_COLLISION_SIZE, "pose": [0.45, -0.25, 0.44, 1, 0, 0, 0]},
+                "box_1": {"dims": BOX_COLLISION_SIZE, "pose": [0.40, -0.30, 0.44, 1, 0, 0, 0]},
+                "box_2": {"dims": BOX_COLLISION_SIZE, "pose": [0.50, -0.20, 0.44, 1, 0, 0, 0]},
+            }
+        }
+        world_cfg = WorldConfig.from_dict(world_config)
         
         robot_cfg = RobotConfig.from_dict(yml_data["robot_cfg"], tensor_args)
         ik_config = IKSolverConfig.load_from_robot_config(
-            robot_cfg, None, rotation_threshold=0.05, position_threshold=0.005,
-            num_seeds=20, self_collision_check=False, self_collision_opt=False,
+            robot_cfg, world_cfg, rotation_threshold=0.05, position_threshold=0.005,
+            num_seeds=20, self_collision_check=True, self_collision_opt=True,
+            collision_activation_distance=0.02, collision_checker_type=CollisionCheckerType.PRIMITIVE,
             tensor_args=tensor_args, use_cuda_graph=True,
         )
         ik_solver = IKSolver(ik_config)
@@ -55,6 +70,23 @@ class cuRoboControllerWorker:
         
         for _ in range(10): 
             ik_solver.solve_batch(dummy_goal)
+
+        print("[Controller] Waiting for PyBullet scene...")
+        if not self.sys.scene_ready.wait(timeout=15.0):
+            print("[Controller WARN] Using placeholder obstacles") 
+        else:
+            box_poses = self.sys.shared_box_poses.read()
+            if box_poses:
+                for bp in box_poses:
+                    qx, qy, qz, qw = bp["quaternion_xyzw"]
+                    box_pose = Pose(
+                        position=torch.tensor([bp["position"]], dtype=torch.float32, device=tensor_args.device),
+                        quaternion=torch.tensor([[qw, qx, qy, qz]], dtype=torch.float32, device=tensor_args.device),
+                    )
+                    ik_solver.world_coll_checker.update_obstacle_pose(name=bp["name"], w_obj_pose=box_pose)
+                print(f"[Controller] Synced {len(box_poses)} box poses into cuRobo collision world")
+
+        self.sys.system_ready = True
         
         print("[Controller] cuRobo Warm-up done")
         self.sys.system_ready = True

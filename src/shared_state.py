@@ -61,3 +61,16 @@ class SharedLogState:
     def read_all(self):
         with self._lock:
             return self._vision_log.copy(), self._control_log.copy()
+
+class SharedBoxPoseState:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._poses = None  # list[dict(name, position=[x,y,z], quaternion_xyzw=[x,y,z,w])]
+
+    def write(self, poses):
+        with self._lock:
+            self._poses = poses
+
+    def read(self):
+        with self._lock:
+            return self._poses
