@@ -15,9 +15,12 @@ from tools.analyze_control import analyze_control
 from tools.plot_control import generate_control_figures
 from tools.analyze_frequency import analyze_frequency
 
+'''
+call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
+'''
 
 class TeleopSystem:
-    def __init__(self, playback_file=None):
+    def __init__(self, playback_file=r'data\20260710_112213.db3'):
         self.shared_pose = SharedPoseState()
         self.shared_joints = SharedJointState()
         self.shared_frame = SharedFrameState()
@@ -89,14 +92,14 @@ class TeleopSystem:
             analyze_frequency(self.logger_control_path)
 
 def main():
-    system = TeleopSystem(playback_file=None)
+    system = TeleopSystem(playback_file=r'data\20260710_112213.db3')
     system.start_all()
 
     win_name = "Teleoperation Pipeline"
-    robot_vision_win = "Robot Vision (Top: Wrist | Bottom: World)"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
-    cv2.namedWindow(robot_vision_win, cv2.WINDOW_NORMAL)
-    cv2.resizeWindow(robot_vision_win, 320, 480)
+
+    robot_vision_win = "Robot Vision (Top: Wrist | Bottom: World)"
+    window_open = False
     btn_w, btn_h = 300, 50
     space_time = 0.3
     last_pybullet_frame = None
@@ -104,9 +107,6 @@ def main():
     try:
         while True:
             display_frame = system.shared_frame.read()
-            pybullet_frame = system.shared_pybullet_frame.read()
-            if pybullet_frame is not None:
-                last_pybullet_frame = pybullet_frame
             t_current = time.time()
 
             if system.teleop_active:
@@ -135,7 +135,13 @@ def main():
 
                 cv2.imshow(win_name, display_frame)
 
-            if last_pybullet_frame is not None:
+            pybullet_frame = system.shared_pybullet_frame.read()
+            if pybullet_frame is not None:
+                last_pybullet_frame = pybullet_frame
+                if not window_open:
+                    cv2.namedWindow(robot_vision_win, cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow(robot_vision_win, 320, 480)
+                    window_open = True
                 cv2.imshow(robot_vision_win, last_pybullet_frame)
 
             key = cv2.waitKey(10) & 0xFF

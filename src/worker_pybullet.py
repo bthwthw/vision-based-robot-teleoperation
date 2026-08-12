@@ -72,7 +72,7 @@ class PyBulletSimulatorWorker:
         relative_translation = [0.0, 0.025, 0.05] 
         relative_rotation = p.getQuaternionFromEuler([0, 0, 0])
         cam_pos, cam_ori = p.multiplyTransforms(link_pos, link_ori, relative_translation, relative_rotation)
-        self._draw_camera_axes(cam_pos, cam_ori)
+        # self._draw_camera_axes(cam_pos, cam_ori)
         
         rot_matrix = np.reshape(p.getMatrixFromQuaternion(cam_ori), (3, 3))
         
@@ -90,7 +90,8 @@ class PyBulletSimulatorWorker:
             viewMatrix=view_mat,
             projectionMatrix=proj_mat,
             renderer=p.ER_BULLET_HARDWARE_OPENGL,
-            flags=p.ER_NO_SEGMENTATION_MASK
+            flags=p.ER_NO_SEGMENTATION_MASK,
+            shadow=0
         )
         rgba = np.reshape(np.array(images[2], dtype=np.uint8), (self.cam_height, self.cam_width, -1))
         return rgba[:, :, 0:3]
@@ -109,7 +110,8 @@ class PyBulletSimulatorWorker:
             viewMatrix=view_mat,
             projectionMatrix=proj_mat,
             renderer=p.ER_BULLET_HARDWARE_OPENGL,
-            flags=p.ER_NO_SEGMENTATION_MASK
+            flags=p.ER_NO_SEGMENTATION_MASK,
+            shadow=0
         )
         rgba = np.reshape(np.array(images[2], dtype=np.uint8), (self.cam_height, self.cam_width, -1))
         return rgba[:, :, 0:3]
@@ -267,7 +269,7 @@ class PyBulletSimulatorWorker:
                 if self.sys.robot_id is not None:
                     try:
                         tcp_link_state = p.getLinkState(self.sys.robot_id, self.sys.tcp_link_idx, computeForwardKinematics=True)
-                        self._draw_tcp_axes(tcp_link_state, axis_length=0.15)
+                        # self._draw_tcp_axes(tcp_link_state, axis_length=0.15)
                         pb_state = {
                             "tcp_pos": list(tcp_link_state[4]),
                             "tcp_quat_wxyz": [tcp_link_state[5][3], tcp_link_state[5][0],
