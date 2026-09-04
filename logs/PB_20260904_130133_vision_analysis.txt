@@ -1,0 +1,30 @@
+
+=== FILTER ANALYSIS ===
+File   : PB_20260904_130133_vision.csv
+Frames : 997
+FPS    : mean=7163282522.9ms | std=112807485017.0ms | max=1783657333065.0ms
+[FILTER ANALYZER WARN] High frame time variance detected. Metrics may be degraded.
+
+[POSITION LAG]
+  X: 7163282522.9 ms
+  Y: 7163282522.9 ms
+  Z: 0.0 ms
+
+[ GRIPPER LAG ]
+  Dist: 7163282522.9 ms
+
+[ORIENTATION LAG]
+  Lag: 7163282522.9 ms
+
+[JITTER REDUCTION]
+  X  : raw=1.84mm | filt=1.31mm (-29%)
+  Y  : raw=1.16mm | filt=0.44mm (-62%)
+  Z  : raw=2.59mm | filt=2.12mm (-18%)
+  Grip: raw=19.52mm | filt=5.97mm (-69%)
+  Ori: raw=19.05deg | filt=1.68deg (-91%)
+
+[KINEMATIC CHECK]
+  CAMERA INPUT (Raw) : Max = 5274 deg/s | Mean = 344.4 deg/s
+  ROBOT OUTPUT (Filt): Max = 70 deg/s | Mean = 22.7 deg/s
+  [INFO] Camera captured massive spikes (>1000 deg/s).
+  [SUCCESS] All spikes were successfully blocked and saturated by the filter.

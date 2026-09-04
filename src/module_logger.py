@@ -26,6 +26,15 @@ class DataLogger:
         "t_read_pose_ms", "t_pb_query_ms", "t_log_enqueue_ms",
         "t_sleep_ms", "t_loop_total_ms",
     ]
+
+    RECORD_FIELDNAMES = [
+        "wall_time_s", "actual_hz",
+        "t_wrist_capture_ms", "t_world_capture_ms", "t_tick_total_ms",
+        "action_1", "action_2", "action_3", "action_4", "action_5", "action_6", "action_gripper",
+        "state_1", "state_2", "state_3", "state_4", "state_5", "state_6",
+        "state_tcp_x", "state_tcp_y", "state_tcp_z",
+        "state_tcp_qw", "state_tcp_qx", "state_tcp_qy", "state_tcp_qz",
+    ]
  
     _QUEUE_SENTINEL = object()
  
@@ -37,18 +46,24 @@ class DataLogger:
             filename_prefix = filename_prefix[:-4]
  
         self.vision_path = os.path.join(out_dir, f"{filename_prefix}_vision.csv")
-        self.control_path = os.path.join(out_dir, f"{filename_prefix}_control.csv")
- 
         self._vision_file = open(self.vision_path, mode="w", newline="", buffering=1 << 16)
-        self._control_file = open(self.control_path, mode="w", newline="", buffering=1 << 16)
         self._vision_writer = csv.DictWriter(self._vision_file, fieldnames=self.VISION_FIELDNAMES)
-        self._control_writer = csv.DictWriter(self._control_file, fieldnames=self.CONTROL_FIELDNAMES)
         self._vision_writer.writeheader()
+        self._vision_count = 0
+
+        self.control_path = os.path.join(out_dir, f"{filename_prefix}_control.csv")
+        self._control_file = open(self.control_path, mode="w", newline="", buffering=1 << 16)
+        self._control_writer = csv.DictWriter(self._control_file, fieldnames=self.CONTROL_FIELDNAMES)
         self._control_writer.writeheader()
+        self._control_count = 0
+
+        self.record_path = os.path.join(out_dir, f"{filename_prefix}_record.csv")
+        self._record_file = open(self.record_path, mode="w", newline="", buffering=1 << 16)
+        self._record_writer = csv.DictWriter(self._record_file, fieldnames=self.RECORD_FIELDNAMES)
+        self._record_writer.writeheader()
+        self._record_count = 0
  
         self._flush_every_n = flush_every_n
-        self._vision_count = 0
-        self._control_count = 0
  
         self._queue = queue.Queue()
         self._closed = False
@@ -57,7 +72,8 @@ class DataLogger:
  
         print(f"[LOGGER INFO] Vision  log -> {self.vision_path}")
         print(f"[LOGGER INFO] Control log -> {self.control_path}")
- 
+        print(f"[LOGGER INFO] Record log -> {self.record_path}")
+
     def _writer_loop(self):
         while True:
             item = self._queue.get()
@@ -71,6 +87,11 @@ class DataLogger:
                     self._vision_count += 1
                     if self._vision_count % self._flush_every_n == 0:
                         self._vision_file.flush()
+                elif kind == "record":
+                    self._record_writer.writerow(row)
+                    self._record_count += 1
+                    if self._record_count % self._flush_every_n == 0:
+                        self._record_file.flush()
                 else:
                     self._control_writer.writerow(row)
                     self._control_count += 1
@@ -140,7 +161,36 @@ class DataLogger:
                 row[key] = data[key]
  
         self._queue.put_nowait(("control", row))
- 
+
+    def write_record(self, data):
+        row = {
+            "wall_time_s": round(time.time() - self._start_wall_time, 6),
+            "actual_hz": data.get("actual_hz"),
+            "t_wrist_capture_ms": data.get("t_wrist_capture_ms"),
+            "t_world_capture_ms": data.get("t_world_capture_ms"),
+            "t_tick_total_ms": data.get("t_tick_total_ms"),
+        }
+        action = data.get("action")
+        if action is not None and len(action) >= 7:
+            for i in range(6):
+                row[f"action_{i+1}"] = action[i]
+            row["action_gripper"] = action[6]
+
+        pb_state = data.get("pb_state")
+        if pb_state is not None:
+            q = pb_state.get("q")
+            if q is not None and len(q) >= 6:
+                for i in range(6):
+                    row[f"state_{i+1}"] = q[i]
+            pos = pb_state.get("tcp_pos")
+            if pos is not None:
+                row["state_tcp_x"], row["state_tcp_y"], row["state_tcp_z"] = pos
+            quat = pb_state.get("tcp_quat_wxyz")
+            if quat is not None:
+                row["state_tcp_qw"], row["state_tcp_qx"], row["state_tcp_qy"], row["state_tcp_qz"] = quat
+
+        self._queue.put_nowait(("record", row))
+
     # ------------------------------------------------------------------
     def close(self, timeout=5.0):
         if self._closed:
@@ -158,6 +208,11 @@ class DataLogger:
         try:
             self._control_file.flush()
             self._control_file.close()
+        except Exception:
+            pass
+        try:
+            self._record_file.flush()
+            self._record_file.close()
         except Exception:
             pass
  

@@ -13,7 +13,7 @@ from tools.analyze_filter import analyze_vision
 from tools.plot_vision import generate_report_figures
 from tools.analyze_control import analyze_control
 from tools.plot_control import generate_control_figures
-from tools.analyze_frequency import analyze_frequency
+from tools.analyze_frequency import analyze_frequency, analyze_record_frequency, analyze_vision_frequency, correlate_spikes
 
 '''
 call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
@@ -37,6 +37,7 @@ class TeleopSystem:
         self.playback_file = playback_file
         self.logger_vision_path = None
         self.logger_control_path = None
+        self.logger_record_path = None
 
         self.robot_id = None
         self.arm_indices = []
@@ -60,6 +61,7 @@ class TeleopSystem:
         self.shared_log = DataLogger(log_prefix, out_dir="logs")
         self.logger_vision_path = self.shared_log.vision_path
         self.logger_control_path = self.shared_log.control_path
+        self.logger_record_path = self.shared_log.record_path
 
         self.perception_worker = PerceptionWorker(self)
         self.controller_worker = cuRoboControllerWorker(self)
@@ -90,6 +92,15 @@ class TeleopSystem:
             analyze_control(self.logger_control_path)
             generate_control_figures(self.logger_control_path, out_dir="figs")
             analyze_frequency(self.logger_control_path)
+
+        if self.logger_record_path:
+            analyze_record_frequency(self.logger_record_path, target_hz=15.0)
+
+        if self.logger_vision_path:
+            analyze_vision_frequency(self.logger_vision_path)
+
+        if self.logger_vision_path and self.logger_record_path:
+            correlate_spikes(self.logger_vision_path, self.logger_record_path)
 
 def main():
     system = TeleopSystem(playback_file=r'data\20260710_112213.db3')

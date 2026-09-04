@@ -203,13 +203,13 @@ class cuRoboControllerWorker:
                     if hasattr(q_solution, "cpu"):
                         q_solution = q_solution.cpu().numpy()
                     q_solution = np.atleast_1d(q_solution).flatten().tolist()
-                    print(f"[Controller-IK-OK] Joints (cuRobo): {[round(float(j), 3) for j in q_solution[:6]]}")
+                    # print(f"[Controller-IK-OK] Joints (cuRobo): {[round(float(j), 3) for j in q_solution[:6]]}")
                     q_logged = q_solution[:6]
 
                     self.sys.shared_joints.write(q_solution[:6] + [gripper_opening], time.time())
                     last_q_solution = torch.tensor(q_solution[:6], dtype=torch.float32, device=tensor_args.device)
                 else:
-                    print(f"[Controller-IK-FAIL] Cannot find valid joint configuration for target position: {[round(float(p), 3) for p in robot_target_pos]}")
+                    # print(f"[Controller-IK-FAIL] Cannot find valid joint configuration for target position: {[round(float(p), 3) for p in robot_target_pos]}")
                     last_joints, _ = self.sys.shared_joints.read()
                     if last_joints is not None and len(last_joints) >= 7:
                         q_logged = last_joints[:6]
@@ -250,7 +250,7 @@ class cuRoboControllerWorker:
                 self.sys.shared_log.write_control(ctrl_log)
                 t_log_enqueue_ms = (time.perf_counter() - t_log0) * 1000.0
                 if t_log_enqueue_ms > 5.0:
-                    print(f"[Controller WARN] write_control enqueue mất {t_log_enqueue_ms:.1f}ms (bất thường)")
+                    print(f"[Controller WARN] write_control enqueue: {t_log_enqueue_ms:.1f}ms")
 
         finally:
             print("[Controller] Closing ...")

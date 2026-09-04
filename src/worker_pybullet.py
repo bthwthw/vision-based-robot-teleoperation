@@ -51,6 +51,12 @@ class PyBulletSimulatorWorker:
         self.cam_cx = 314.67425537109375
         self.cam_cy = 247.34315490722656
 
+        # record
+        self.RECORD_HZ = 15.0
+        self.RECORD_PERIOD = 1.0 / self.RECORD_HZ
+        self._next_record_deadline = None
+        self._last_record_tick_t = None
+
     def _compute_projection_matrix(self, near, far):
         width = self.cam_width
         height = self.cam_height
@@ -264,12 +270,11 @@ class PyBulletSimulatorWorker:
 
         try:
             while self.sys.is_running:
-                joints, _ts = self.sys.shared_joints.read()
+                joints = None  
 
                 if self.sys.robot_id is not None:
                     try:
                         tcp_link_state = p.getLinkState(self.sys.robot_id, self.sys.tcp_link_idx, computeForwardKinematics=True)
-                        # self._draw_tcp_axes(tcp_link_state, axis_length=0.15)
                         pb_state = {
                             "tcp_pos": list(tcp_link_state[4]),
                             "tcp_quat_wxyz": [tcp_link_state[5][3], tcp_link_state[5][0],
@@ -277,20 +282,48 @@ class PyBulletSimulatorWorker:
                             "q": [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices],
                         }
                         self.sys.shared_pb_state.write(pb_state, time.time())
+                        joints, _ts = self.sys.shared_joints.read()
 
-                        tool0_link_state = p.getLinkState(self.sys.robot_id, self.sys.tool0_link_idx, computeForwardKinematics=True)
+                        now = time.perf_counter()
+                        if self._next_record_deadline is None:
+                            self._next_record_deadline = now
 
-                        if log_counter % 16 == 0:  # 15Hz
-                            wrist_frame = self._get_wrist_camera_data(tool0_link_state)
-                            self.wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
-                        
-                        if log_counter % 16 == 8:  # 15Hz
-                            world_frame = self._get_world_camera_data()
-                            self.world_bgr = cv2.cvtColor(world_frame, cv2.COLOR_RGB2BGR)
+                        if now >= self._next_record_deadline:
+                            t_tick_start = time.perf_counter()
+                            actual_hz = (1.0 / (now - self._last_record_tick_t)
+                                        if self._last_record_tick_t is not None else None)
+                            self._last_record_tick_t = now
 
-                        if self.wrist_bgr is not None and self.world_bgr is not None:
-                            combined_frame = np.vstack((self.wrist_bgr, self.world_bgr))
-                            self.sys.shared_pybullet_frame.write(combined_frame)
+                            tool0_link_state = p.getLinkState(self.sys.robot_id, self.sys.tool0_link_idx, computeForwardKinematics=True)
+
+                            t_c0 = time.perf_counter()
+                            # wrist_frame = self._get_wrist_camera_data(tool0_link_state)
+                            # self.wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
+                            t_wrist_ms = (time.perf_counter() - t_c0) * 1000.0
+
+                            t_c1 = time.perf_counter()
+                            # world_frame = self._get_world_camera_data()
+                            # self.world_bgr = cv2.cvtColor(world_frame, cv2.COLOR_RGB2BGR)
+                            t_world_ms = (time.perf_counter() - t_c1) * 1000.0
+
+                            # combined_frame = np.vstack((self.wrist_bgr, self.world_bgr))
+                            # self.sys.shared_pybullet_frame.write(combined_frame)
+
+                            t_tick_total_ms = (time.perf_counter() - t_tick_start) * 1000.0
+
+                            if hasattr(self.sys, "shared_log") and self.sys.shared_log is not None:
+                                self.sys.shared_log.write_record({
+                                    "actual_hz": actual_hz,
+                                    "t_wrist_capture_ms": t_wrist_ms,
+                                    "t_world_capture_ms": t_world_ms,
+                                    "t_tick_total_ms": t_tick_total_ms,
+                                    "action": joints,
+                                    "pb_state": pb_state,
+                                })
+
+                            self._next_record_deadline += self.RECORD_PERIOD
+                            if self._next_record_deadline < now:
+                                self._next_record_deadline = now + self.RECORD_PERIOD
 
                     except p.error:
                         pass
