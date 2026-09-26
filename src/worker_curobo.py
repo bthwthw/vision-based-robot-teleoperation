@@ -109,6 +109,9 @@ class cuRoboControllerWorker:
         if not has_pb_state:
             print("[Controller WARN] self.sys.shared_pb_state not found")
 
+        goal_pos_tensor = torch.zeros((1, 3), dtype=torch.float32, device=tensor_args.device)
+        goal_quat_tensor = torch.zeros((1, 4), dtype=torch.float32, device=tensor_args.device)
+
         try:
             while self.sys.is_running:
                 t_loop_start = time.perf_counter()
@@ -182,15 +185,16 @@ class cuRoboControllerWorker:
                 last_robot_target_pos = robot_target_pos
                 last_robot_target_rot = robot_target_rot
 
-                goal_pos_tensor = torch.tensor([robot_target_pos], dtype=torch.float32, device=tensor_args.device)
-                goal_quat_tensor = torch.tensor([robot_target_quat], dtype=torch.float32, device=tensor_args.device)
+                t_start = time.time()
+
+                goal_pos_tensor.copy_(torch.tensor([robot_target_pos], dtype=torch.float32))
+                goal_quat_tensor.copy_(torch.tensor([robot_target_quat], dtype=torch.float32))
                 goal = Pose(goal_pos_tensor, goal_quat_tensor)
 
                 seed_config = None
                 if last_q_solution is not None:
                     seed_config = last_q_solution.view(1, 1, -1).repeat(1, ik_config.num_seeds, 1)
 
-                t_start = time.time()
                 result = ik_solver.solve_batch(goal, seed_config=seed_config)
                 curobo_latency_ms = (time.time() - t_start) * 1000.0
 

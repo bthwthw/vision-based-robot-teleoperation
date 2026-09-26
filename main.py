@@ -2,6 +2,7 @@ import threading
 import time
 from datetime import datetime
 import cv2
+import ctypes
 
 from src.shared_state import SharedPoseState, SharedJointState, SharedFrameState, SharedBoxPoseState, SharedPbState
 from src.worker_perception import PerceptionWorker
@@ -103,14 +104,14 @@ class TeleopSystem:
             correlate_spikes(self.logger_vision_path, self.logger_record_path)
 
 def main():
-    system = TeleopSystem(playback_file=r'data\20260710_112213.db3')
+    system = TeleopSystem(playback_file=None)
     system.start_all()
 
     win_name = "Teleoperation Pipeline"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
 
-    robot_vision_win = "Robot Vision (Top: Wrist | Bottom: World)"
-    window_open = False
+    # robot_vision_win = "Robot Vision (Top: Wrist | Bottom: World)"
+    # window_open = False
     btn_w, btn_h = 300, 50
     space_time = 0.3
     last_pybullet_frame = None
@@ -146,14 +147,14 @@ def main():
 
                 cv2.imshow(win_name, display_frame)
 
-            pybullet_frame = system.shared_pybullet_frame.read()
-            if pybullet_frame is not None:
-                last_pybullet_frame = pybullet_frame
-                if not window_open:
-                    cv2.namedWindow(robot_vision_win, cv2.WINDOW_NORMAL)
-                    cv2.resizeWindow(robot_vision_win, 320, 480)
-                    window_open = True
-                cv2.imshow(robot_vision_win, last_pybullet_frame)
+            # pybullet_frame = system.shared_pybullet_frame.read()
+            # if pybullet_frame is not None:
+            #     last_pybullet_frame = pybullet_frame
+            #     if not window_open:
+            #         cv2.namedWindow(robot_vision_win, cv2.WINDOW_NORMAL)
+            #         cv2.resizeWindow(robot_vision_win, 320, 480)
+            #         window_open = True
+            #     cv2.imshow(robot_vision_win, last_pybullet_frame)
 
             key = cv2.waitKey(10) & 0xFF
             if key == 27:  # ESC
@@ -171,4 +172,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    winmm = ctypes.windll.winmm
+    winmm.timeBeginPeriod(1)
+    try:
+        main()
+    finally:
+        winmm.timeEndPeriod(1)

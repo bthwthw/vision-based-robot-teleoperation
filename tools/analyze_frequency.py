@@ -261,8 +261,11 @@ def analyze_frequency(csv_path):
             log_print(f"  Min Latency     : {np.min(latency):.2f} ms")
             log_print(f"  Std Latency     : {np.std(latency):.2f} ms")
 
-            curobo_spike_count = np.sum(latency > 100.0)
-            log_print(f"  IK Spikes (>100ms)  : {curobo_spike_count} frames ({(curobo_spike_count/len(latency))*100:.1f}%)")
+            median_latency = np.median(latency)
+            adaptive_threshold = max(100.0, median_latency * 1.5) 
+            curobo_spike_count = np.sum(latency > adaptive_threshold)
+            log_print(f"  IK Spikes (>{adaptive_threshold:.0f}ms, adaptive) : {curobo_spike_count} frames "
+                    f"({(curobo_spike_count/len(latency))*100:.1f}%)")
 
         timer_cols = ["t_read_pose_ms", "t_pb_query_ms", "t_sleep_ms", "t_loop_total_ms"]
         if all(c in df.columns for c in timer_cols):
@@ -299,9 +302,17 @@ def analyze_frequency(csv_path):
 
 
 if __name__ == "__main__":
-    record_path = sys.argv[1] if len(sys.argv) > 1 else "logs/PB_20260812_164455_record.csv"
+    record_path = sys.argv[1] if len(sys.argv) > 1 else "logs/PB_20260904_132118_record.csv"
     vision_path = record_path.replace("_record.csv", "_vision.csv")
 
-    analyze_record_frequency(record_path)
-    analyze_vision_frequency(vision_path)
-    correlate_spikes(vision_path, record_path)
+    # analyze_record_frequency(record_path)
+    # analyze_vision_frequency(vision_path)
+    # correlate_spikes(vision_path, record_path)
+
+    import pandas as pd
+    df = pd.read_csv("logs/PB_20260904_132118_record.csv")
+
+    action_cols = ["action_1","action_2","action_3","action_4","action_5","action_6"]
+    same_as_prev = (df[action_cols].diff().abs().sum(axis=1) < 1e-6)
+    duplicate_rate = same_as_prev.mean() * 100
+    print(f"Tỷ lệ record tick có action trùng hệt tick trước: {duplicate_rate:.1f}%")

@@ -177,7 +177,7 @@ class PyBulletSimulatorWorker:
     def run(self):
         print("[Communication] Initializing...")
         p.connect(p.GUI)
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setPhysicsEngineParameter(numSolverIterations=150, enableConeFriction=1)
         p.setGravity(0, 0, -9.81)
@@ -297,7 +297,7 @@ class PyBulletSimulatorWorker:
                             tool0_link_state = p.getLinkState(self.sys.robot_id, self.sys.tool0_link_idx, computeForwardKinematics=True)
 
                             t_c0 = time.perf_counter()
-                            # wrist_frame = self._get_wrist_camera_data(tool0_link_state)
+                            wrist_frame = self._get_wrist_camera_data(tool0_link_state)
                             # self.wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
                             t_wrist_ms = (time.perf_counter() - t_c0) * 1000.0
 
