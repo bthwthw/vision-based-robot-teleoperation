@@ -8,6 +8,13 @@ import pybullet_data
 
 from src.module_scene import SceneManager
 
+def _eye_target_to_yaw_pitch_dist(eye, target):
+    diff = [eye[0] - target[0], eye[1] - target[1], eye[2] - target[2]]
+    distance = math.sqrt(diff[0]**2 + diff[1]**2 + diff[2]**2)
+    yaw = math.degrees(math.atan2(diff[1], diff[0]))
+    pitch = -math.degrees(math.asin(diff[2] / distance))
+    return yaw, pitch, distance
+
 def compute_gripper_control(current_pos, gripper_target, contact_detected=False,
                            open_limit=0.0, close_limit=0.71,
                            step=0.02, close_force=32.0, open_force=30.0, hold_force=12.0,
@@ -91,8 +98,8 @@ class PyBulletSimulatorWorker:
         relative_translation = [0.0, 0.025, 0.05] 
         relative_rotation = p.getQuaternionFromEuler([0, 0, 0])
         cam_pos, cam_ori = p.multiplyTransforms(link_pos, link_ori, relative_translation, relative_rotation)
-        self._draw_camera_axes(cam_pos, cam_ori)
-        self._draw_camera_frustum(cam_pos, cam_ori, fov_deg=60, aspect=self.wrist_cam_width / self.wrist_cam_height, far=1.0, tag="wrist")
+        # self._draw_camera_axes(cam_pos, cam_ori)
+        # self._draw_camera_frustum(cam_pos, cam_ori, fov_deg=60, aspect=self.wrist_cam_width / self.wrist_cam_height, far=1.0, tag="wrist")
 
         rot_matrix = np.reshape(p.getMatrixFromQuaternion(cam_ori), (3, 3))
         
@@ -244,6 +251,16 @@ class PyBulletSimulatorWorker:
         # self.sys.shared_box_poses.write(box_poses)
         self.sys.scene_ready.set()
         # print(f"[Communication] Synced {len(box_poses)} box poses to shared state")
+
+        WORLD_CAM_EYE = [0.0, 1.5, 0.8]
+        WORLD_CAM_TARGET = [0.0, 0.0, 0.4]
+        yaw, pitch, distance = _eye_target_to_yaw_pitch_dist(WORLD_CAM_EYE, WORLD_CAM_TARGET)
+        p.resetDebugVisualizerCamera(
+            cameraDistance=distance,
+            cameraYaw=yaw,
+            cameraPitch=pitch,
+            cameraTargetPosition=WORLD_CAM_TARGET,
+        )
 
         urdf_path = str(Path("assets/abb_irb1200_509_gripper/irb1200_full.urdf").resolve())
         self.sys.robot_id = p.loadURDF(urdf_path, basePosition=[0, 0, 0], useFixedBase=True)
