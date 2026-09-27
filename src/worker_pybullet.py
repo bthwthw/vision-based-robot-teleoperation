@@ -44,12 +44,20 @@ class PyBulletSimulatorWorker:
         self.world_bgr = None
 
         # rs intrinsics 
-        self.cam_width = 640
-        self.cam_height = 480
+        self.rs_base_width = 640
+        self.rs_base_height = 480
         self.cam_fx = 616.1630249023438
         self.cam_fy = 616.451416015625
         self.cam_cx = 314.67425537109375
         self.cam_cy = 247.34315490722656
+
+        # world (static) camera
+        self.world_cam_width = 256
+        self.world_cam_height = 192
+
+        # wrist (gripper) camera 
+        self.wrist_cam_width = 96
+        self.wrist_cam_height = 72
 
         # record
         self.RECORD_HZ = 10.0
@@ -57,17 +65,22 @@ class PyBulletSimulatorWorker:
         self._next_record_deadline = None
         self._last_record_tick_t = None
 
-    def _compute_projection_matrix(self, near, far):
-        width = self.cam_width
-        height = self.cam_height
-        
+    def _compute_projection_matrix(self, width, height, near, far):
+        scale_x = width / self.rs_base_width
+        scale_y = height / self.rs_base_height
+        fx = self.cam_fx * scale_x
+        fy = self.cam_fy * scale_y
+        cx = self.cam_cx * scale_x
+        cy = self.cam_cy * scale_y
+
         projection_mat = [
-            2.0 * self.cam_fx / width, 0.0, 0.0, 0.0,
-            0.0, 2.0 * self.cam_fy / height, 0.0, 0.0,
-            1.0 - 2.0 * self.cam_cx / width, (2.0 * self.cam_cy / height) - 1.0, 
+            2.0 * fx / width, 0.0, 0.0, 0.0,
+            0.0, 2.0 * fy / height, 0.0, 0.0,
+            1.0 - 2.0 * cx / width, (2.0 * cy / height) - 1.0,
             (far + near) / (near - far), -1.0,
             0.0, 0.0, (2.0 * far * near) / (near - far), 0.0
-        ]
+            ]
+
         return tuple(projection_mat)
     
     def _get_wrist_camera_data(self, link_state):
@@ -78,8 +91,9 @@ class PyBulletSimulatorWorker:
         relative_translation = [0.0, 0.025, 0.05] 
         relative_rotation = p.getQuaternionFromEuler([0, 0, 0])
         cam_pos, cam_ori = p.multiplyTransforms(link_pos, link_ori, relative_translation, relative_rotation)
-        # self._draw_camera_axes(cam_pos, cam_ori)
-        
+        self._draw_camera_axes(cam_pos, cam_ori)
+        self._draw_camera_frustum(cam_pos, cam_ori, fov_deg=60, aspect=self.wrist_cam_width / self.wrist_cam_height, far=1.0, tag="wrist")
+
         rot_matrix = np.reshape(p.getMatrixFromQuaternion(cam_ori), (3, 3))
         
         # Camera coordinate system: forward = z_pybullet, up = y_pybullet
@@ -89,17 +103,20 @@ class PyBulletSimulatorWorker:
         cam_target = np.array(cam_pos) + forward_vec * 0.5
         view_mat = p.computeViewMatrix(cam_pos, cam_target.tolist(), up_vec.tolist())
         
-        proj_mat = self._compute_projection_matrix(near=0.01, far=1.0)
+        proj_mat = self._compute_projection_matrix(self.wrist_cam_width, self.wrist_cam_height, near=0.01, far=1.0)
         
-        images = p.getCameraImage(
-            self.cam_width, self.cam_height,
-            viewMatrix=view_mat,
-            projectionMatrix=proj_mat,
-            renderer=p.ER_BULLET_HARDWARE_OPENGL,
-            flags=p.ER_NO_SEGMENTATION_MASK,
-            shadow=0
-        )
-        rgba = np.reshape(np.array(images[2], dtype=np.uint8), (self.cam_height, self.cam_width, -1))
+        images = p.getCameraImage(  self.wrist_cam_width, self.wrist_cam_height,
+                                    viewMatrix=view_mat,
+                                    projectionMatrix=proj_mat,
+                                    renderer=p.ER_BULLET_HARDWARE_OPENGL,
+                                    flags=p.ER_NO_SEGMENTATION_MASK,
+                                    shadow=0)
+
+        rgba = np.reshape(np.array(images[2], dtype=np.uint8),
+                        (self.wrist_cam_height, self.wrist_cam_width, -1))
+        depth_buffer = np.reshape(np.array(images[3], dtype=np.float32), (self.wrist_cam_height, self.wrist_cam_width))
+        # depth_meters = far * near / (far - (far - near) * depth_buffer)
+
         return rgba[:, :, 0:3]
 
     def _get_world_camera_data(self):
@@ -109,19 +126,51 @@ class PyBulletSimulatorWorker:
         
         view_mat = p.computeViewMatrix(cam_pos, cam_target, cam_up)
         
-        proj_mat = self._compute_projection_matrix(near=0.1, far=3.0)
+        proj_mat = self._compute_projection_matrix(self.world_cam_width, self.world_cam_height, near=0.01, far=1.0)
+                
+        images = p.getCameraImage(  self.world_cam_width, self.world_cam_height,
+                                    viewMatrix=view_mat,
+                                    projectionMatrix=proj_mat,
+                                    renderer=p.ER_BULLET_HARDWARE_OPENGL,
+                                    flags=p.ER_NO_SEGMENTATION_MASK,
+                                    shadow=0)
+                                    
+        rgba = np.reshape(np.array(images[2], dtype=np.uint8),
+                        (self.world_cam_height, self.world_cam_width, -1))
+        depth_buffer = np.reshape(np.array(images[3], dtype=np.float32), (self.world_cam_height, self.world_cam_width))    
+        # depth_meters = far * near / (far - (far - near) * depth_buffer)
         
-        images = p.getCameraImage(
-            self.cam_width, self.cam_height,
-            viewMatrix=view_mat,
-            projectionMatrix=proj_mat,
-            renderer=p.ER_BULLET_HARDWARE_OPENGL,
-            flags=p.ER_NO_SEGMENTATION_MASK,
-            shadow=0
-        )
-        rgba = np.reshape(np.array(images[2], dtype=np.uint8), (self.cam_height, self.cam_width, -1))
         return rgba[:, :, 0:3]
 
+    def _draw_camera_frustum(self, cam_pos, cam_ori, fov_deg, aspect, far, tag="wrist"):
+        if not hasattr(self, '_frustum_ids'):
+            self._frustum_ids = {}
+        if tag not in self._frustum_ids:
+            self._frustum_ids[tag] = [-1, -1, -1, -1]
+
+        rot_matrix = np.reshape(p.getMatrixFromQuaternion(cam_ori), (3, 3))
+        forward = rot_matrix[:, 2]
+        right = rot_matrix[:, 0]
+        up = rot_matrix[:, 1]
+
+        half_h = far * math.tan(math.radians(fov_deg) / 2.0)
+        half_w = half_h * aspect
+
+        center_far = np.array(cam_pos) + forward * far
+        corners = [
+            center_far + up * half_h + right * half_w,
+            center_far + up * half_h - right * half_w,
+            center_far - up * half_h - right * half_w,
+            center_far - up * half_h + right * half_w,
+        ]
+
+        for i, corner in enumerate(corners):
+            if self._frustum_ids[tag][i] < 0:
+                self._frustum_ids[tag][i] = p.addUserDebugLine(cam_pos, corner.tolist(), [1, 1, 0], 1)
+            else:
+                p.addUserDebugLine(cam_pos, corner.tolist(), [1, 1, 0], 1,
+                                    replaceItemUniqueId=self._frustum_ids[tag][i])
+            
     def _draw_camera_axes(self, cam_pos, cam_ori, axis_length=0.1):
         if not hasattr(self, 'cam_axis_ids'):
             self.cam_axis_ids = [-1, -1, -1]
