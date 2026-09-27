@@ -17,23 +17,18 @@ def _eye_target_to_yaw_pitch_dist(eye, target):
 
 def compute_gripper_control(current_pos, gripper_target, contact_detected=False,
                            open_limit=0.0, close_limit=0.71,
-                           step=0.02, close_force=32.0, open_force=30.0, hold_force=12.0,
-                           contact_step=0.001, contact_steps_after_touch=3, contact_phase=0):
+                           step=0.02, close_force=32.0, open_force=30.0, hold_force=25.0):
     if gripper_target <= 0.5:
         target = max(current_pos - step, open_limit)
         force = open_force
         holding = False
     else:
         if contact_detected:
-            if contact_phase < contact_steps_after_touch:
-                # continue closing a little bit after first contact
-                target = min(current_pos + contact_step, close_limit)
-                force = hold_force
-                holding = True
-            else:
-                target = current_pos
-                force = hold_force
-                holding = True
+            # Luôn target vị trí đóng kín tối đa — vật thể vật lý chặn lại,
+            # sai số vị trí không bao giờ về 0 -> motor liên tục ép hold_force vào vật
+            target = close_limit
+            force = hold_force
+            holding = True
         else:
             target = min(current_pos + step, close_limit)
             force = close_force
@@ -218,17 +213,23 @@ class PyBulletSimulatorWorker:
 
     def _has_box_contact(self):
         if self.sys.robot_id is None:
-            return False
+            return False, False
 
+        left_contact = False
+        right_contact = False
         try:
             for box_id in self.scene_manager.box_ids:
                 contacts = p.getContactPoints(self.sys.robot_id, box_id)
                 for contact in contacts:
+                    link_index = contact[3]   # linkIndexA — vì bodyA = robot_id
                     if contact[8] <= 0.002:
-                        return True
+                        if link_index in self.left_finger_links:
+                            left_contact = True
+                        elif link_index in self.right_finger_links:
+                            right_contact = True
         except (p.error, AttributeError):
-            return False
-        return False
+            return False, False
+        return left_contact, right_contact
 
     def run(self):
         print("[Communication] Initializing...")
@@ -308,6 +309,28 @@ class PyBulletSimulatorWorker:
                              "right_inner_finger_joint"]
         slave_indices = [name_to_index[name] for name in slave_joint_names if name in name_to_index]
         mimic_multipliers = np.array([1.0, -1.0, -1.0, -1.0, 1.0])
+
+        left_finger_names = ["left_inner_finger_joint", "left_inner_knuckle_joint"]
+        right_finger_names = ["right_inner_finger_joint", "right_inner_knuckle_joint", "right_outer_knuckle_joint"]
+
+        self.left_finger_links = {name_to_index[n] for n in left_finger_names if n in name_to_index}
+        self.right_finger_links = {name_to_index[n] for n in right_finger_names if n in name_to_index}
+
+        self.gripper_constraints = []
+        for slave_idx, multiplier in zip(slave_indices, mimic_multipliers):
+            c = p.createConstraint(
+                self.sys.robot_id, master_idx,
+                self.sys.robot_id, slave_idx,
+                jointType=p.JOINT_GEAR,
+                jointAxis=[0, 1, 0],   # trục xoay của finger joint — kiểm tra đúng trục theo URDF của bạn
+                parentFramePosition=[0, 0, 0],
+                childFramePosition=[0, 0, 0]
+            )
+            p.changeConstraint(c, gearRatio=-multiplier, maxForce=10000, erp=0.5)
+            self.gripper_constraints.append(c)
+
+        for slave_idx in slave_indices:
+            p.setJointMotorControl2(self.sys.robot_id, slave_idx, p.VELOCITY_CONTROL, targetVelocity=0, force=0)
 
         home_joints_deg = [0.0, 0.0, 0.0, 0.0, 90.0, 90.0]
         home_joints_rad = [math.radians(deg) for deg in home_joints_deg]
@@ -407,18 +430,19 @@ class PyBulletSimulatorWorker:
                         
                     actual_master_pos = p.getJointState(self.sys.robot_id, master_idx)[0]
 
-                    contact_detected = self._has_box_contact()
-                    if gripper_target > 0.5 and contact_detected:
+                    left_contact, right_contact = self._has_box_contact()
+                    full_grasp = left_contact and right_contact   # chỉ True khi CẢ 2 bên cùng chạm
+
+                    if gripper_target > 0.5 and full_grasp:
                         self.gripper_contact_phase = min(self.gripper_contact_phase + 1, 5)
                     else:
                         self.gripper_contact_phase = 0
 
                     target_master_pos, current_force, _ = compute_gripper_control(
-                        current_pos=actual_master_pos,
-                        gripper_target=gripper_target,
-                        contact_detected=contact_detected,
-                        contact_phase=self.gripper_contact_phase,
-                    )
+                                                                current_pos=actual_master_pos,
+                                                                gripper_target=gripper_target,
+                                                                contact_detected=full_grasp,
+                                                            )
 
                     # drive master toward the computed target
                     p.setJointMotorControl2(
@@ -431,15 +455,15 @@ class PyBulletSimulatorWorker:
                     )
 
                     # slaves should follow the master's TARGET to avoid oscillation/lag
-                    target_slave_positions = (mimic_multipliers * target_master_pos).tolist()
-                    p.setJointMotorControlArray(
-                        self.sys.robot_id,
-                        slave_indices,
-                        p.POSITION_CONTROL,
-                        targetPositions=target_slave_positions,
-                        forces=[current_force] * len(slave_indices),
-                        positionGains=[0.8] * len(slave_indices),
-                    )
+                    # target_slave_positions = (mimic_multipliers * target_master_pos).tolist()
+                    # p.setJointMotorControlArray(
+                    #     self.sys.robot_id,
+                    #     slave_indices,
+                    #     p.POSITION_CONTROL,
+                    #     targetPositions=target_slave_positions,
+                    #     forces=[current_force] * len(slave_indices),
+                    #     positionGains=[0.8] * len(slave_indices),
+                    # )
 
                     log_counter += 1
                     if self.sys.teleop_active and log_counter % 12 == 0:
