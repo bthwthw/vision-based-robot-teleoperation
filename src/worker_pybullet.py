@@ -444,7 +444,7 @@ class PyBulletSimulatorWorker:
                     log_counter += 1
                     if self.sys.teleop_active and log_counter % 12 == 0:
                         current_pybullet_angles = [p.getJointState(self.sys.robot_id, idx)[0] for idx in self.sys.arm_indices]
-                        print(f"[PyBullet-EXEC] Target: {[round(t, 2) for t in arm_targets]} | Actual: {[round(a, 2) for a in current_pybullet_angles]}")
+                        # print(f"[PyBullet-EXEC] Target: {[round(t, 2) for t in arm_targets]} | Actual: {[round(a, 2) for a in current_pybullet_angles]}")
 
                 loop_start = time.perf_counter()
                 p.stepSimulation()
