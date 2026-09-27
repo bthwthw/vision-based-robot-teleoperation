@@ -21,7 +21,7 @@ call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliar
 '''
 
 class TeleopSystem:
-    def __init__(self, playback_file=r'data\20260710_112213.db3'):
+    def __init__(self, playback_file):
         self.shared_pose = SharedPoseState()
         self.shared_joints = SharedJointState()
         self.shared_frame = SharedFrameState()
@@ -95,7 +95,7 @@ class TeleopSystem:
             analyze_frequency(self.logger_control_path)
 
         if self.logger_record_path:
-            analyze_record_frequency(self.logger_record_path, target_hz=15.0)
+            analyze_record_frequency(self.logger_record_path, target_hz=10.0)
 
         if self.logger_vision_path:
             analyze_vision_frequency(self.logger_vision_path)
@@ -104,7 +104,7 @@ class TeleopSystem:
             correlate_spikes(self.logger_vision_path, self.logger_record_path)
 
 def main():
-    system = TeleopSystem(playback_file=None)
+    system = TeleopSystem(playback_file=None)  
     system.start_all()
 
     win_name = "Teleoperation Pipeline"

@@ -1,0 +1,16 @@
+
+=== RECORD TICK FREQUENCY (dùng cho LeRobot dataset) ===
+File   : RT_20260927_130032_record.csv
+Total Rows : 293
+Target: 10.0 Hz (100.00 ms/tick)
+  Mean Hz    : 5.83
+  Std Hz     : 0.81
+  Min Hz     : 2.39
+  Mean jitter (|dt - target|): 76.07 ms
+  Max jitter  : 319.17 ms
+  Ticks within ±3ms of target: 0/292 (0.0%)
+
+[CAPTURE COST PER TICK]
+  t_wrist_capture_ms    : mean=134.17ms max=244.78ms
+  t_world_capture_ms    : mean=0.00ms max=0.30ms
+  t_tick_total_ms       : mean=137.79ms max=245.68ms

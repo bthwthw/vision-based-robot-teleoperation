@@ -152,7 +152,7 @@ def correlate_spikes(vision_csv, record_csv, window_s=0.15):
     else:
         print("  -> Không thấy tương quan rõ -> 2 vấn đề có thể độc lập nhau.")
 
-def analyze_record_frequency(csv_path, target_hz=15.0):
+def analyze_record_frequency(csv_path, target_hz=10.0):
     if not os.path.exists(csv_path):
         print(f"[FREQ ANALYZER ERROR] File not found: {csv_path}")
         return

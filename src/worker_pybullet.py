@@ -52,7 +52,7 @@ class PyBulletSimulatorWorker:
         self.cam_cy = 247.34315490722656
 
         # record
-        self.RECORD_HZ = 15.0
+        self.RECORD_HZ = 10.0
         self.RECORD_PERIOD = 1.0 / self.RECORD_HZ
         self._next_record_deadline = None
         self._last_record_tick_t = None
@@ -184,17 +184,17 @@ class PyBulletSimulatorWorker:
         p.loadURDF("plane.urdf")
 
         self.scene_manager.setup_pick_and_place_scene()
-        box_poses = []
-        for i, box_id in enumerate(self.scene_manager.box_ids):
-            pos, orn_xyzw = p.getBasePositionAndOrientation(box_id)
-            box_poses.append({
-                "name": f"box_{i}",
-                "position": list(pos),
-                "quaternion_xyzw": list(orn_xyzw),
-            })
-        self.sys.shared_box_poses.write(box_poses)
+        # box_poses = []
+        # for i, box_id in enumerate(self.scene_manager.box_ids):
+        #     pos, orn_xyzw = p.getBasePositionAndOrientation(box_id)
+        #     box_poses.append({
+        #         "name": f"box_{i}",
+        #         "position": list(pos),
+        #         "quaternion_xyzw": list(orn_xyzw),
+        #     })
+        # self.sys.shared_box_poses.write(box_poses)
         self.sys.scene_ready.set()
-        print(f"[Communication] Synced {len(box_poses)} box poses to shared state")
+        # print(f"[Communication] Synced {len(box_poses)} box poses to shared state")
 
         urdf_path = str(Path("assets/abb_irb1200_509_gripper/irb1200_full.urdf").resolve())
         self.sys.robot_id = p.loadURDF(urdf_path, basePosition=[0, 0, 0], useFixedBase=True)
@@ -321,9 +321,12 @@ class PyBulletSimulatorWorker:
                                     "pb_state": pb_state,
                                 })
 
-                            self._next_record_deadline += self.RECORD_PERIOD
-                            if self._next_record_deadline < now:
-                                self._next_record_deadline = now + self.RECORD_PERIOD
+                            actual_period_needed = max(self.RECORD_PERIOD, (t_tick_total_ms / 1000.0) * 1.2)
+                            self._next_record_deadline = now + actual_period_needed
+
+                            # self._next_record_deadline += self.RECORD_PERIOD
+                            # if self._next_record_deadline < now:
+                            #     self._next_record_deadline = now + self.RECORD_PERIOD
 
                     except p.error:
                         pass

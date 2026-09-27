@@ -1,0 +1,1 @@
+wall_time_s,frame_timestamp_s,curobo_time_ms,ik_success,tgt_tcp_x,tgt_tcp_y,tgt_tcp_z,tgt_tcp_qw,tgt_tcp_qx,tgt_tcp_qy,tgt_tcp_qz,pb_tcp_x,pb_tcp_y,pb_tcp_z,pb_tcp_qw,pb_tcp_qx,pb_tcp_qy,pb_tcp_qz,q_tgt_1,q_tgt_2,q_tgt_3,q_tgt_4,q_tgt_5,q_tgt_6,pb_q_1,pb_q_2,pb_q_3,pb_q_4,pb_q_5,pb_q_6,t_read_pose_ms,t_pb_query_ms,t_log_enqueue_ms,t_sleep_ms,t_loop_total_ms

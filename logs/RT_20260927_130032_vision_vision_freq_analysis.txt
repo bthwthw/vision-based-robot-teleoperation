@@ -1,0 +1,47 @@
+
+=== VISION (PERCEPTION) LOOP FREQUENCY ===
+File   : RT_20260927_130032_vision.csv
+Total Rows : 272
+  Mean Frequency  : 5.57 Hz
+  Median Frequency: 5.77 Hz
+  Min Frequency   : 1.39 Hz
+  Max Frequency   : 6.79 Hz
+  --
+  Mean Loop Time  : 187.99 ms
+  Median Loop Time: 173.29 ms
+  Max Loop Time   : 719.62 ms (Spike)
+  Std Loop Time   : 57.44 ms
+  Lag Spikes (>100ms) : 271 frames (100.0%)
+
+[VISION SPIKE TIMESTAMPS] (wall_time_s, dt_ms) - dùng để so khớp với record.csv
+  t=5.238s  dt=378.9ms
+  t=5.495s  dt=257.6ms
+  t=5.774s  dt=278.2ms
+  t=6.027s  dt=253.7ms
+  t=6.313s  dt=285.5ms
+  t=7.032s  dt=719.6ms
+  t=7.298s  dt=265.3ms
+  t=7.555s  dt=257.3ms
+  t=7.839s  dt=283.6ms
+  t=8.117s  dt=278.6ms
+  t=8.402s  dt=285.0ms
+  t=8.669s  dt=266.8ms
+  t=8.923s  dt=253.6ms
+  t=9.191s  dt=268.6ms
+  t=9.480s  dt=288.8ms
+  t=9.775s  dt=294.5ms
+  t=9.985s  dt=210.6ms
+  t=10.173s  dt=188.2ms
+  t=10.351s  dt=177.2ms
+  t=10.533s  dt=182.6ms
+  t=10.707s  dt=173.8ms
+  t=10.891s  dt=184.2ms
+  t=11.071s  dt=179.7ms
+  t=11.235s  dt=163.7ms
+  t=11.405s  dt=170.3ms
+  t=11.599s  dt=194.0ms
+  t=11.771s  dt=172.2ms
+  t=11.923s  dt=152.3ms
+  t=12.092s  dt=168.6ms
+  t=12.243s  dt=151.4ms
+  ... và 241 spike khác
