@@ -1,0 +1,21 @@
+
+=== VISION (PERCEPTION) LOOP FREQUENCY ===
+File   : RT_20260929_223141_vision.csv
+Total Rows : 2042
+  Mean Frequency  : 16.62 Hz
+  Median Frequency: 16.61 Hz
+  Min Frequency   : 0.77 Hz
+  Max Frequency   : 20.57 Hz
+  --
+  Mean Loop Time  : 61.56 ms
+  Median Loop Time: 60.21 ms
+  Max Loop Time   : 1304.57 ms (Spike)
+  Std Loop Time   : 29.27 ms
+  Lag Spikes (>100ms) : 5 frames (0.2%)
+
+[VISION SPIKE TIMESTAMPS] (wall_time_s, dt_ms) - dùng để so khớp với record.csv
+  t=3.959s  dt=242.8ms
+  t=5.507s  dt=1304.6ms
+  t=12.282s  dt=237.8ms
+  t=14.650s  dt=241.7ms
+  t=15.469s  dt=243.9ms

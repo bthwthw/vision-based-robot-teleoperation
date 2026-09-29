@@ -1,0 +1,31 @@
+
+=== SYSTEM FREQUENCY & PERFORMANCE ANALYSIS ===
+File   : RT_20260929_223141_control.csv
+Total Rows : 810
+
+[CONTROL LOOP FREQUENCY]
+  Mean Frequency  : 9.32 Hz
+  Median Frequency: 8.72 Hz
+  Min Frequency   : 0.23 Hz
+  Max Frequency   : 23.91 Hz
+  --
+  Mean Loop Time  : 132.78 ms
+  Median Loop Time: 114.70 ms
+  Max Loop Time   : 4269.03 ms (Spike)
+  Std Loop Time   : 262.40 ms
+  Lag Spikes (>100ms) : 609 frames (75.3%)
+
+[CUROBO IK EXECUTION TIME]
+  Mean Latency    : 93.07 ms
+  Median Latency  : 100.71 ms
+  Max Latency     : 173.16 ms
+  Min Latency     : 27.70 ms
+  Std Latency     : 20.69 ms
+  IK Spikes (>151ms, adaptive) : 3 frames (0.4%)
+
+[STEP-BY-STEP TIMER BREAKDOWN]
+  Read shared_pose                : mean=   0.01ms  median=   0.01ms  max=    0.11ms
+  Read shared_pb_state (PyBullet) : mean=   0.01ms  median=   0.01ms  max=    0.49ms
+  time.sleep(0.01)                : mean=  12.82ms  median=  10.52ms  max=   44.24ms
+  TOTAL loop (perf_counter)       : mean= 109.54ms  median= 114.15ms  max=  192.13ms
+  Unaccounted                     : mean=   3.63ms  median=   2.08ms  max=   52.06ms
