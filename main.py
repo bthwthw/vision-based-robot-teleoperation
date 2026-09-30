@@ -16,9 +16,7 @@ from tools.analyze_control import analyze_control
 from tools.plot_control import generate_control_figures
 from tools.analyze_frequency import analyze_frequency, analyze_record_frequency, analyze_vision_frequency, correlate_spikes
 
-'''
-call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64
-'''
+# call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64 
 
 class TeleopSystem:
     def __init__(self, playback_file):

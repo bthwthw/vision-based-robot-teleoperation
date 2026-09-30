@@ -11,10 +11,9 @@ class SceneManager:
 
     def setup_pick_and_place_scene(self):
         print(f"[Scene INFO] INITIALIZING... Table height: {self.table_top_z} m")
-
+        # table 
         table_col_id = p.createCollisionShape(p.GEOM_BOX, halfExtents=self.table_half_extents)
         table_vis_id = p.createVisualShape(p.GEOM_BOX, halfExtents=self.table_half_extents, rgbaColor=[0.6, 0.5, 0.4, 1])
-        
         z_center_table = self.table_top_z - self.table_half_extents[2]
         
         self.table_id = p.createMultiBody(
@@ -23,15 +22,29 @@ class SceneManager:
             baseVisualShapeIndex=table_vis_id, 
             basePosition=[0.45, 0.0, z_center_table]
         )
-        
         p.changeDynamics(self.table_id, -1, lateralFriction=1.0)
-
         colors = [[0.8, 0.2, 0.2, 1], [0.2, 0.8, 0.2, 1], [0.2, 0.2, 0.8, 1]]
+
+        # Target zone: marker on the table 
+        zone_half_extents = [0.06, 0.06, 0.001]
+        zone_color = [0.2, 0.8, 0.8, 0.5]
+        zone_position = [0.45, 0.3, self.table_top_z + zone_half_extents[2]]
+
+        zone_vis_id = p.createVisualShape(
+            p.GEOM_BOX,
+            halfExtents=zone_half_extents,
+            rgbaColor=zone_color,
+        )
+        self.target_zone_id = p.createMultiBody(
+            baseMass=0,
+            baseVisualShapeIndex=zone_vis_id,
+            basePosition=zone_position,
+        )
         
-        for i in range(3):
-            s = random.uniform(0.015, 0.025) 
+        for _ in range(1):
+            s = 0.02
             box_col_id = p.createCollisionShape(p.GEOM_BOX, halfExtents=[s, s, s])
-            box_vis_id = p.createVisualShape(p.GEOM_BOX, halfExtents=[s, s, s], rgbaColor=colors[i])
+            box_vis_id = p.createVisualShape(p.GEOM_BOX, halfExtents=[s, s, s], rgbaColor=[0.8, 0.2, 0.2, 1])
             
             x_pos = random.uniform(0.35, 0.55)
             y_pos = random.uniform(-0.4, -0.15)
