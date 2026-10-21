@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 import cv2
 import ctypes
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
 from src.shared_state import SharedPoseState, SharedJointState, SharedFrameState, SharedBoxPoseState, SharedPbState
 from src.worker_perception import PerceptionWorker
@@ -66,6 +67,35 @@ class TeleopSystem:
         self.controller_worker = cuRoboControllerWorker(self)
         self.simulator_worker = PyBulletSimulatorWorker(self)
 
+        dataset_features = {
+            "action": {"dtype": "float32", "shape": (7,), "names": None},
+            "observation.state": {"dtype": "float32", "shape": (7,), "names": None},
+            "observation.images.wrist": {"dtype": "video", "shape": (72, 96, 3)},
+            "observation.images.world": {"dtype": "video", "shape": (192, 256, 3)},
+        }
+
+        # self.dataset = LeRobotDataset.create(
+        #     repo_id="bthw/lerobot-dataset", 
+        #     fps=9,
+        #     features=dataset_features,
+        #     robot_type="abb_irb1200_pybullet",
+        #     use_videos=True,
+        #     image_writer_threads=4,
+        #     tolerance_s=0.1,
+        #     root='./dataset',
+        # )
+
+        self.dataset = LeRobotDataset.resume(
+            repo_id="bthw/lerobot-dataset",
+            root='./dataset',
+            tolerance_s=0.1,
+            image_writer_threads=4,
+        )
+
+        self.task_str = "pick up the box and place it in the target zone"
+        self.request_save_episode = False
+        self.request_clear_episode = False
+
         self.threads = [
             threading.Thread(target=self.perception_worker.run, name="PerceptionTh", daemon=True),
             threading.Thread(target=self.controller_worker.run, name="ControllerTh", daemon=True),
@@ -101,6 +131,9 @@ class TeleopSystem:
         if self.logger_vision_path and self.logger_record_path:
             correlate_spikes(self.logger_vision_path, self.logger_record_path)
 
+        if hasattr(self, "dataset") and self.dataset is not None:
+            self.dataset.finalize()
+
 def main():
     system = TeleopSystem(playback_file=None)  
     system.start_all()
@@ -108,8 +141,8 @@ def main():
     win_name = "Teleoperation Pipeline"
     cv2.namedWindow(win_name, cv2.WINDOW_NORMAL)
 
-    # robot_vision_win = "Robot Vision (Top: Wrist | Bottom: World)"
-    # window_open = False
+    robot_vision_win = "Robot Vision (Wrist)"
+    window_open = False
     btn_w, btn_h = 300, 50
     space_time = 0.3
     last_pybullet_frame = None
@@ -145,14 +178,14 @@ def main():
 
                 cv2.imshow(win_name, display_frame)
 
-            # pybullet_frame = system.shared_pybullet_frame.read()
-            # if pybullet_frame is not None:
-            #     last_pybullet_frame = pybullet_frame
-            #     if not window_open:
-            #         cv2.namedWindow(robot_vision_win, cv2.WINDOW_NORMAL)
-            #         cv2.resizeWindow(robot_vision_win, 320, 480)
-            #         window_open = True
-            #     cv2.imshow(robot_vision_win, last_pybullet_frame)
+            pybullet_frame = system.shared_pybullet_frame.read()
+            if pybullet_frame is not None:
+                last_pybullet_frame = pybullet_frame
+                if not window_open:
+                    cv2.namedWindow(robot_vision_win, cv2.WINDOW_NORMAL)
+                    cv2.resizeWindow(robot_vision_win, 96, 72)
+                    window_open = True
+                cv2.imshow(robot_vision_win, last_pybullet_frame)
 
             key = cv2.waitKey(10) & 0xFF
             if key == 27:  # ESC
@@ -160,6 +193,10 @@ def main():
             elif key == 32:  # SPACE
                 system.last_space_press_time = time.time()
                 system.set_teleop_state(active_target=True)
+            elif key == ord('n'):
+                system.request_save_episode = True
+            elif key == ord('r'):
+                system.request_clear_episode = True
 
     except KeyboardInterrupt:
         print("[SYSTEM] KeyboardInterrupt")

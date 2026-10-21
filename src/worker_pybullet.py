@@ -42,8 +42,8 @@ class PyBulletSimulatorWorker:
         self.axis_ids = [-1, -1, -1]
         self.scene_manager = SceneManager(table_top_z=0.4)
         self.gripper_contact_phase = 0
-        self.wrist_bgr = None
-        self.world_bgr = None
+        # self.wrist_bgr = None
+        # self.world_bgr = None
 
         # rs intrinsics 
         self.rs_base_width = 640
@@ -122,27 +122,24 @@ class PyBulletSimulatorWorker:
         return rgba[:, :, 0:3]
 
     def _get_world_camera_data(self):
-        cam_pos = [1.5, 0.0, 0.8] 
-        cam_target = [0.0, 0.0, 0.4] 
-        cam_up = [0, 0, 1] 
-        
-        view_mat = p.computeViewMatrix(cam_pos, cam_target, cam_up)
-        
-        proj_mat = self._compute_projection_matrix(self.world_cam_width, self.world_cam_height, near=0.01, far=1.0)
-                
-        images = p.getCameraImage(  self.world_cam_width, self.world_cam_height,
-                                    viewMatrix=view_mat,
-                                    projectionMatrix=proj_mat,
-                                    renderer=p.ER_BULLET_HARDWARE_OPENGL,
-                                    flags=p.ER_NO_SEGMENTATION_MASK,
-                                    shadow=0)
-                                    
-        rgba = np.reshape(np.array(images[2], dtype=np.uint8),
-                        (self.world_cam_height, self.world_cam_width, -1))
-        depth_buffer = np.reshape(np.array(images[3], dtype=np.float32), (self.world_cam_height, self.world_cam_width))    
-        # depth_meters = far * near / (far - (far - near) * depth_buffer)
-        
-        return rgba[:, :, 0:3]
+        camera = p.getDebugVisualizerCamera()
+        view_matrix = camera[2]
+        projection_matrix = camera[3]
+
+        image = p.getCameraImage(
+            self.world_cam_width,
+            self.world_cam_height,
+            viewMatrix=view_matrix,
+            projectionMatrix=projection_matrix,
+            renderer=p.ER_BULLET_HARDWARE_OPENGL,
+            flags=p.ER_NO_SEGMENTATION_MASK,
+            shadow=0,
+        )
+
+        rgba = np.asarray(image[2], dtype=np.uint8).reshape(
+            self.world_cam_height, self.world_cam_width, 4
+        )
+        return rgba[:, :, :3]
 
     def _draw_camera_frustum(self, cam_pos, cam_ori, fov_deg, aspect, far, tag="wrist"):
         if not hasattr(self, '_frustum_ids'):
@@ -234,7 +231,7 @@ class PyBulletSimulatorWorker:
     def run(self):
         print("[Communication] Initializing...")
         p.connect(p.GUI)
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1)
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         p.setPhysicsEngineParameter(numSolverIterations=150, enableConeFriction=1)
         p.setGravity(0, 0, -9.81)
@@ -253,7 +250,7 @@ class PyBulletSimulatorWorker:
         self.sys.scene_ready.set()
         # print(f"[Communication] Synced {len(box_poses)} box poses to shared state")
 
-        WORLD_CAM_EYE = [0.0, 1.5, 0.8]
+        WORLD_CAM_EYE = [0.0, 1, 0.8]
         WORLD_CAM_TARGET = [0.0, 0.0, 0.4]
         yaw, pitch, distance = _eye_target_to_yaw_pitch_dist(WORLD_CAM_EYE, WORLD_CAM_TARGET)
         p.resetDebugVisualizerCamera(
@@ -385,20 +382,46 @@ class PyBulletSimulatorWorker:
 
                             tool0_link_state = p.getLinkState(self.sys.robot_id, self.sys.tool0_link_idx, computeForwardKinematics=True)
 
-                            t_c0 = time.perf_counter()
-                            wrist_frame = self._get_wrist_camera_data(tool0_link_state)
-                            # self.wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
-                            t_wrist_ms = (time.perf_counter() - t_c0) * 1000.0
-
                             t_c1 = time.perf_counter()
-                            # world_frame = self._get_world_camera_data()
+                            world_frame = self._get_world_camera_data()
                             # self.world_bgr = cv2.cvtColor(world_frame, cv2.COLOR_RGB2BGR)
                             t_world_ms = (time.perf_counter() - t_c1) * 1000.0
 
+                            t_c0 = time.perf_counter()
+                            wrist_frame = self._get_wrist_camera_data(tool0_link_state)
+                            wrist_bgr = cv2.cvtColor(wrist_frame, cv2.COLOR_RGB2BGR)
+                            t_wrist_ms = (time.perf_counter() - t_c0) * 1000.0
+
                             # combined_frame = np.vstack((self.wrist_bgr, self.world_bgr))
                             # self.sys.shared_pybullet_frame.write(combined_frame)
+                            self.sys.shared_pybullet_frame.write(wrist_bgr)
 
                             t_tick_total_ms = (time.perf_counter() - t_tick_start) * 1000.0
+
+                            if self.sys.request_save_episode:
+                                self.sys.dataset.save_episode()
+                                self.sys.request_save_episode = False
+                                print("[Record] Episode saved.")
+                                
+                            if self.sys.request_clear_episode:
+                                self.sys.dataset.clear_episode_buffer()
+                                self.sys.request_clear_episode = False
+                                print("[Record] Episode discarded.")
+
+                            # 2. Ghi dữ liệu khi hệ thống đang ở trạng thái active
+                            if self.sys.teleop_active:
+                                actual_master_pos = p.getJointState(self.sys.robot_id, master_idx)[0]
+                                gripper_state_norm = actual_master_pos / close_limit
+                                
+                                self.sys.dataset.add_frame({
+                                    "action": np.asarray(list(joints[:6]) + [joints[6]], dtype=np.float32),
+                                    "observation.state": np.asarray(
+                                        pb_state["q"] + [gripper_state_norm],
+                                        dtype=np.float32,),
+                                    "observation.images.wrist": wrist_frame,
+                                    "observation.images.world": world_frame,
+                                    "task": self.sys.task_str,
+                                })
 
                             if hasattr(self.sys, "shared_log") and self.sys.shared_log is not None:
                                 self.sys.shared_log.write_record({
@@ -429,6 +452,8 @@ class PyBulletSimulatorWorker:
                                                 maxVelocity=max_vel)
                         
                     actual_master_pos = p.getJointState(self.sys.robot_id, master_idx)[0]
+                    close_limit = 0.71 
+                    gripper_state_norm = actual_master_pos / close_limit
 
                     left_contact, right_contact = self._has_box_contact()
                     full_grasp = left_contact and right_contact   # chỉ True khi CẢ 2 bên cùng chạm
