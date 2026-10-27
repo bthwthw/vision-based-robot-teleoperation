@@ -1,5 +1,4 @@
 import threading
-import time
 from datetime import datetime
 import cv2
 import ctypes
@@ -19,6 +18,13 @@ from tools.plot_control import generate_control_figures
 from tools.analyze_frequency import analyze_frequency, analyze_record_frequency,analyze_vision_frequency, correlate_long_frames
 
 # call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64 
+
+user32 = ctypes.windll.user32
+VK_SPACE = 0x20
+JOINT_KEYS = {ord('4'): 4, ord('5'): 5, ord('6'): 6}
+
+def _key_down(vk):
+    return bool(user32.GetAsyncKeyState(vk) & 0x8000)
 
 def _safe(fn, *args, **kwargs):
     try:
@@ -54,7 +60,7 @@ class TeleopSystem:
         self.system_ready = False
         self.teleop_active = False
         self.request_toggle_teleop = False
-        self.last_space_press_time = 0.0
+        self.selected_joint = 6
 
     def set_teleop_state(self, active_target):
         if self.system_ready and self.teleop_active != active_target:
@@ -152,17 +158,21 @@ def main():
     robot_vision_win = "Robot Vision (Wrist)"
     window_open = False
     btn_w, btn_h = 300, 50
-    space_time = 0.3
+    prev_down = {vk: False for vk in JOINT_KEYS}
     last_pybullet_frame = None
 
     try:
         while True:
             display_frame = system.shared_frame.read()
-            t_current = time.time()
 
-            if system.teleop_active:
-                if t_current - system.last_space_press_time > space_time:
-                    system.set_teleop_state(active_target=False)
+            hwnd = user32.FindWindowW(None, win_name)
+            focused = hwnd != 0 and user32.GetForegroundWindow() == hwnd
+            system.set_teleop_state(active_target=focused and _key_down(VK_SPACE))
+            for vk, joint in JOINT_KEYS.items():
+                down = focused and _key_down(vk)
+                if down and not prev_down[vk]:
+                    system.selected_joint = joint
+                prev_down[vk] = down
 
             if display_frame is not None:
                 h, w, _ = display_frame.shape
@@ -184,6 +194,9 @@ def main():
                         cv2.putText(display_frame, "RELEASE 'SPACE' TO STOP", (x1 + 30, y1 + 32),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
+                cv2.putText(display_frame, f"JOINT: J{system.selected_joint}  (keys 4/5/6)", (20, 210),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 215, 255), 2, cv2.LINE_AA)
+
                 cv2.imshow(win_name, display_frame)
 
             pybullet_frame = system.shared_pybullet_frame.read()
@@ -198,9 +211,6 @@ def main():
             key = cv2.waitKey(10) & 0xFF
             if key == 27:  # ESC
                 break
-            elif key == 32:  # SPACE
-                system.last_space_press_time = time.time()
-                system.set_teleop_state(active_target=True)
             elif key == ord('n'):
                 system.request_save_episode = True
             elif key == ord('r'):
