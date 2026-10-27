@@ -9,14 +9,13 @@ class DataLogger:
     VISION_FIELDNAMES = [
         "wall_time_s", "frame_timestamp_s",
         "raw_x", "raw_y", "raw_z", "filt_x", "filt_y", "filt_z",
-        "raw_qw", "raw_qx", "raw_qy", "raw_qz",
-        "filt_qw", "filt_qx", "filt_qy", "filt_qz",
-        "raw_gripper_dist_mm", "filt_gripper_dist_mm",
+        "gesture_raw", "gesture_score", "rot_cmd", "gripper_state",
     ]
  
     CONTROL_FIELDNAMES = [
         "wall_time_s", "frame_timestamp_s",
         "curobo_time_ms", "ik_success",
+        "selected_joint", "rot_cmd", "rot_committed",
         "tgt_tcp_x", "tgt_tcp_y", "tgt_tcp_z",
         "tgt_tcp_qw", "tgt_tcp_qx", "tgt_tcp_qy", "tgt_tcp_qz",
         "pb_tcp_x", "pb_tcp_y", "pb_tcp_z",
@@ -112,15 +111,12 @@ class DataLogger:
         row["raw_x"], row["raw_y"], row["raw_z"] = raw_pos if raw_pos else (None, None, None)
         row["filt_x"], row["filt_y"], row["filt_z"] = filt_pos if filt_pos else (None, None, None)
  
-        raw_quat = data.get("raw_quat")
-        if raw_quat is not None:
-            row["raw_qw"], row["raw_qx"], row["raw_qy"], row["raw_qz"] = raw_quat
-        filt_quat = data.get("filt_quat")
-        if filt_quat is not None:
-            row["filt_qw"], row["filt_qx"], row["filt_qy"], row["filt_qz"] = filt_quat
+        row["gesture_raw"] = data.get("gesture_raw")
+        row["gesture_score"] = data.get("gesture_score")
+        row["rot_cmd"] = data.get("rot_cmd")
  
-        row["raw_gripper_dist_mm"] = data.get("raw_gripper_dist")
-        row["filt_gripper_dist_mm"] = data.get("filt_gripper_dist")
+        gripper_state = data.get("gripper_state")
+        row["gripper_state"] = None if gripper_state is None else int(gripper_state == "Close")
  
         self._queue.put_nowait(("vision", row))
  
@@ -130,6 +126,9 @@ class DataLogger:
             "frame_timestamp_s": data.get("frame_timestamp_s"),
             "curobo_time_ms": data.get("curobo_time_ms"),
             "ik_success": data.get("ik_success"),
+            "selected_joint": data.get("selected_joint"),
+            "rot_cmd": data.get("rot_cmd"),
+            "rot_committed": data.get("rot_committed"),
         }
  
         tgt_tcp_pos = data.get("tgt_tcp_pos")
@@ -215,4 +214,3 @@ class DataLogger:
             self._record_file.close()
         except Exception:
             pass
- 

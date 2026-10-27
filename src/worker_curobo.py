@@ -13,6 +13,21 @@ from curobo.wrap.reacher.ik_solver import IKSolver, IKSolverConfig
 from curobo.geom.types import WorldConfig
 from curobo.geom.sdf.world import CollisionCheckerType
 
+ROT_RATE_RAD_S = math.radians(20.0)
+JOINT_SIGN = {4: 1.0, 5: 1.0, 6: 1.0}
+STALE_S = 0.15
+DT_MAX = 0.1
+
+def joint_axis_world(fk_fn, q_t, idx, eps=0.05):
+    q2 = q_t.clone()
+    q2[0, idx] += eps
+    quats = fk_fn(torch.cat([q_t, q2], dim=0)).ee_quaternion.detach().cpu().numpy()
+    r0 = R.from_quat([quats[0, 1], quats[0, 2], quats[0, 3], quats[0, 0]])
+    r1 = R.from_quat([quats[1, 1], quats[1, 2], quats[1, 3], quats[1, 0]])
+    rv = (r1 * r0.inv()).as_rotvec()
+    n = np.linalg.norm(rv)
+    return rv / n if n > 1e-9 else None
+
 class cuRoboControllerWorker:
     def __init__(self, system):
         self.sys = system
@@ -89,21 +104,20 @@ class cuRoboControllerWorker:
         print("[Controller] cuRobo Warm-up done")
 
         hand_start_pos = None
-        hand_start_rot = None
         last_q_solution = None
-
-        robot_start_rot = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
         last_robot_target_pos = robot_base_pos
-        last_robot_target_rot = robot_start_rot
+
+        R_home = R.from_quat([robot_base_quat_wxyz[1], robot_base_quat_wxyz[2], robot_base_quat_wxyz[3], robot_base_quat_wxyz[0]])
+        robot_target_rot = R_home
 
         core_mapping = [
-            [-1, 0, 0],
-            [0, -1, 0],
-            [0, 0, 1]
+            [1, 0, 0],
+            [0, 0, -1],
+            [0, 1, 0]
         ]
         gain = 1.5
-        R_map = R.from_matrix(core_mapping)
         P_map = np.array(core_mapping) * gain
+        M_trans = R_home.as_matrix() @ P_map
 
         has_pb_state = hasattr(self.sys, "shared_pb_state")
         if not has_pb_state:
@@ -112,9 +126,17 @@ class cuRoboControllerWorker:
         goal_pos_tensor = torch.zeros((1, 3), dtype=torch.float32, device=tensor_args.device)
         goal_quat_tensor = torch.zeros((1, 4), dtype=torch.float32, device=tensor_args.device)
 
+        last_ts = None
+        t_ts_change = time.perf_counter()
+        t_prev_loop = time.perf_counter()
+        prev_sel = self.sys.selected_joint
+        rot_block = False
+
         try:
             while self.sys.is_running:
                 t_loop_start = time.perf_counter()
+                dt = min(t_loop_start - t_prev_loop, DT_MAX)
+                t_prev_loop = t_loop_start
 
                 t0 = time.perf_counter()
                 pose_dict, ts = self.sys.shared_pose.read()
@@ -124,6 +146,11 @@ class cuRoboControllerWorker:
                     time.sleep(0.005)
                     continue
 
+                if ts != last_ts:
+                    last_ts = ts
+                    t_ts_change = t_loop_start
+                pose_fresh = (t_loop_start - t_ts_change) < STALE_S
+
                 if self.sys.request_toggle_teleop:
                     self.sys.teleop_active = not self.sys.teleop_active
                     self.sys.request_toggle_teleop = False
@@ -131,12 +158,7 @@ class cuRoboControllerWorker:
                     if self.sys.teleop_active:
                         raw_hand_pos = pose_dict["position"]
                         hand_start_pos = (raw_hand_pos.tolist() if isinstance(raw_hand_pos, np.ndarray) else list(raw_hand_pos))[:3]
-
-                        quat_wxyz = pose_dict["quaternion"]
-                        hand_start_rot = R.from_quat([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
-
                         robot_base_pos = last_robot_target_pos
-                        robot_start_rot = last_robot_target_rot
                         print(f"[Controller] -> START CONTROL")
                     else:
                         print("[Controller] -> STOP CONTROL")
@@ -152,38 +174,31 @@ class cuRoboControllerWorker:
                 raw_hand_pos = pose_dict["position"]
                 raw_hand_pos = raw_hand_pos.tolist() if isinstance(raw_hand_pos, np.ndarray) else list(raw_hand_pos)
 
-                quat_wxyz = pose_dict["quaternion"]
-                quat_wxyz = quat_wxyz.tolist() if isinstance(quat_wxyz, np.ndarray) else list(quat_wxyz)
-                current_hand_rot = R.from_quat([quat_wxyz[1], quat_wxyz[2], quat_wxyz[3], quat_wxyz[0]])
+                delta_hand_cam = np.array(raw_hand_pos[:3]) - np.array(hand_start_pos)
+                delta_robot = M_trans @ delta_hand_cam
+                robot_target_pos = [robot_base_pos[i] + delta_robot[i] for i in range(3)]
 
-                delta_hand_cam = np.array([
-                    raw_hand_pos[0] - hand_start_pos[0],
-                    raw_hand_pos[1] - hand_start_pos[1],
-                    raw_hand_pos[2] - hand_start_pos[2]
-                ])
+                sel = self.sys.selected_joint
+                if sel != prev_sel:
+                    rot_block = True
+                    prev_sel = sel
+                rot_cmd = int(pose_dict.get("rot_cmd", 0)) if pose_fresh else 0
+                if rot_cmd == 0:
+                    rot_block = False
+                rot_eff = 0 if rot_block else rot_cmd
 
-                delta_robot_base = P_map @ delta_hand_cam
+                candidate_rot = robot_target_rot
+                rotating = False
+                if rot_eff != 0:
+                    q_axis = last_q_solution.view(1, -1) if last_q_solution is not None else retract_tensor
+                    axis = joint_axis_world(ik_solver.fk, q_axis, sel - 1)
+                    if axis is not None:
+                        angle = JOINT_SIGN.get(sel, 1.0) * rot_eff * ROT_RATE_RAD_S * dt
+                        candidate_rot = R.from_rotvec(axis * angle) * robot_target_rot
+                        rotating = True
 
-                R_tcp_current = robot_start_rot.as_matrix()
-
-                delta_robot_tcp_aligned = R_tcp_current.dot(delta_robot_base)
-
-                robot_target_pos = [
-                    robot_base_pos[0] + delta_robot_tcp_aligned[0],
-                    robot_base_pos[1] + delta_robot_tcp_aligned[1],
-                    robot_base_pos[2] + delta_robot_tcp_aligned[2]
-                ]
-
-                delta_rot_cam = current_hand_rot * hand_start_rot.inv()
-                delta_rot_rob = R_map * delta_rot_cam * R_map.inv()
-
-                robot_target_rot = robot_start_rot * delta_rot_rob
-
-                target_quat_xyzw = (robot_target_rot).as_quat()
+                target_quat_xyzw = candidate_rot.as_quat()
                 robot_target_quat = [target_quat_xyzw[3], target_quat_xyzw[0], target_quat_xyzw[1], target_quat_xyzw[2]]
-
-                last_robot_target_pos = robot_target_pos
-                last_robot_target_rot = robot_target_rot
 
                 t_start = time.time()
 
@@ -201,6 +216,7 @@ class cuRoboControllerWorker:
                 gripper_opening = 1.0 if pose_dict["gripper"] == "Close" else 0.0
                 is_success = bool(result.success[0].item()) if hasattr(result.success[0], "item") else bool(result.success[0])
 
+                rot_committed = None
                 q_logged = [0.0] * 6
                 if is_success:
                     q_solution = result.solution[0]
@@ -212,12 +228,19 @@ class cuRoboControllerWorker:
 
                     self.sys.shared_joints.write(q_solution[:6] + [gripper_opening], time.time())
                     last_q_solution = torch.tensor(q_solution[:6], dtype=torch.float32, device=tensor_args.device)
+
+                    last_robot_target_pos = robot_target_pos
+                    robot_target_rot = candidate_rot
+                    if rotating:
+                        rot_committed = 1
                 else:
                     # print(f"[Controller-IK-FAIL] Cannot find valid joint configuration for target position: {[round(float(p), 3) for p in robot_target_pos]}")
                     last_joints, _ = self.sys.shared_joints.read()
                     if last_joints is not None and len(last_joints) >= 7:
                         q_logged = last_joints[:6]
                         self.sys.shared_joints.write(last_joints[:6] + [gripper_opening], time.time())
+                    if rotating:
+                        rot_committed = 0
 
                 t_pb0 = time.perf_counter()
                 pb_pos_logged, pb_quat_logged = [0.0] * 3, [1.0, 0.0, 0.0, 0.0]
@@ -240,6 +263,9 @@ class cuRoboControllerWorker:
                     "frame_timestamp_s": ts,
                     "curobo_time_ms": curobo_latency_ms,
                     "ik_success": 1 if is_success else 0,
+                    "selected_joint": sel,
+                    "rot_cmd": rot_eff,
+                    "rot_committed": rot_committed,
                     "tgt_tcp_pos": robot_target_pos,
                     "tgt_tcp_quat": robot_target_quat,
                     "pb_tcp_pos": pb_pos_logged,

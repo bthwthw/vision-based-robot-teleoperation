@@ -216,3 +216,45 @@ class QuaternionFilter:
     def reset(self):
         self.q_logical = self.q_physical = self.t_prev = None
         self.omega_prev = self.reject_count = 0
+
+class GestureDebouncer:
+    """ Xác nhận cử chỉ theo thời gian: vào sau press_s, thoát sau release_s. """
+    def __init__(self, min_score=0.7, press_s=0.15, release_s=0.06):
+        self.min_score = min_score
+        self.press_s = press_s
+        self.release_s = release_s
+        self.reset()
+
+    def update(self, label, score, t):
+        if label is None or score < self.min_score:
+            label = None
+
+        if label == self.confirmed:
+            self._leave_t0 = None
+            self._cand = None
+            return self.confirmed
+
+        if self.confirmed is not None:
+            if self._leave_t0 is None:
+                self._leave_t0 = t
+            if t - self._leave_t0 >= self.release_s:
+                self.confirmed = None
+                self._leave_t0 = None
+
+        if label is None:
+            self._cand = None
+        else:
+            if label != self._cand:
+                self._cand, self._cand_t0 = label, t
+            if t - self._cand_t0 >= self.press_s:
+                self.confirmed = label
+                self._cand = None
+                self._leave_t0 = None
+
+        return self.confirmed
+
+    def reset(self):
+        self.confirmed = None
+        self._cand = None
+        self._cand_t0 = 0.0
+        self._leave_t0 = None
