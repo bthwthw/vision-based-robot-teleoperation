@@ -12,6 +12,7 @@ from src.worker_pybullet import PyBulletSimulatorWorker
 from src.module_logger import DataLogger
 
 from tools.analyze_filter import analyze_vision
+from tools.analyze_gesture import analyze_gesture
 from tools.plot_vision import generate_report_figures
 from tools.analyze_control import analyze_control
 from tools.plot_control import generate_control_figures
@@ -136,6 +137,7 @@ class TeleopSystem:
         v, c, r = self.logger_vision_path, self.logger_control_path, self.logger_record_path
 
         if v:
+            _safe(analyze_gesture, v)
             _safe(analyze_vision, v)
             _safe(generate_report_figures, v, out_dir="figs")
             _safe(analyze_vision_frequency, v)
@@ -194,8 +196,8 @@ def main():
                         cv2.putText(display_frame, "RELEASE 'SPACE' TO STOP", (x1 + 30, y1 + 32),
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
 
-                cv2.putText(display_frame, f"JOINT: J{system.selected_joint}  (keys 4/5/6)", (20, 210),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 215, 255), 2, cv2.LINE_AA)
+                cv2.putText(display_frame, f"JOINT: {system.selected_joint}", (20, 210),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 255), 2, cv2.LINE_AA)
 
                 cv2.imshow(win_name, display_frame)
 

@@ -6,11 +6,9 @@ import pandas as pd
 
 TIME_COL = "frame_timestamp_s"
 MAX_LAG_S = 0.5
-OMEGA_REF_DEG_S = 1000.0
 GAP_FACTOR = 3.0
 FLAT_PEAK_DROP = 0.002
 MIN_PEAK_CORR = 0.8
-DESPIKE_WIN = 5
 
 
 class Report:
@@ -31,11 +29,6 @@ def _series(df, cols):
     d = df[[TIME_COL] + cols].apply(pd.to_numeric, errors="coerce")
     d = d.replace([np.inf, -np.inf], np.nan).dropna().sort_values(TIME_COL)
     return d[~d[TIME_COL].duplicated()].reset_index(drop=True)
-
-
-def _unit_quats(d, cols):
-    q = d[cols].to_numpy()
-    return q / np.linalg.norm(q, axis=1, keepdims=True)
 
 
 def estimate_lag(t, raw, filt, max_lag_s=MAX_LAG_S):
@@ -95,13 +88,6 @@ def _lag_str(res):
     return f"{lag * 1000:.0f} ms (r={r:.3f}{flag})"
 
 
-def _despike(x, win=DESPIKE_WIN):
-    # Rolling median to suppress isolated spikes
-    h = win // 2
-    p = np.pad(np.asarray(x, dtype=float), h, mode="edge")
-    return np.median(np.lib.stride_tricks.sliding_window_view(p, win), axis=1)
-
-
 def _jitter(x, order=2):
     x = np.asarray(x, dtype=float)
     if len(x) <= order:
@@ -159,25 +145,6 @@ def analyze_vision(csv_path):
             lag = estimate_lag(d[TIME_COL], d[f"raw_{axis}"], d[f"filt_{axis}"])
             log(f"  {axis.upper()}   : {_lag_str(lag)}")
 
-        d = _series(df, ["raw_gripper_dist_mm", "filt_gripper_dist_mm"])
-        lag = estimate_lag(d[TIME_COL], d["raw_gripper_dist_mm"], d["filt_gripper_dist_mm"])
-        log(f"  Grip: {_lag_str(lag)}")
-
-        raw_c = [f"raw_q{c}" for c in "wxyz"]
-        filt_c = [f"filt_q{c}" for c in "wxyz"]
-        dq = _series(df, raw_c + filt_c)
-        nonzero = (np.linalg.norm(dq[raw_c].to_numpy(), axis=1) > 1e-9) & \
-                  (np.linalg.norm(dq[filt_c].to_numpy(), axis=1) > 1e-9)
-        dq = dq[nonzero].reset_index(drop=True)
-        raw_q = _unit_quats(dq, raw_c)
-        filt_q = _unit_quats(dq, filt_c)
-
-        ref = raw_q[0]
-        ang_raw = 2 * np.arccos(np.clip(np.abs(raw_q @ ref), 0.0, 1.0))
-        ang_filt = 2 * np.arccos(np.clip(np.abs(filt_q @ ref), 0.0, 1.0))
-        lag = estimate_lag(dq[TIME_COL], _despike(ang_raw), ang_filt)
-        log(f"  Ori : {_lag_str(lag)} (raw despiked)")
-
         # Jitter
         log("\n[JITTER] (mean |2nd diff|, lower = smoother)")
         for axis in "xyz":
@@ -185,34 +152,6 @@ def analyze_vision(csv_path):
             jr = _jitter(d[f"raw_{axis}"]) * 1000
             jf = _jitter(d[f"filt_{axis}"]) * 1000
             _jitter_line(log, axis.upper(), jr, jf, "mm")
-
-        d = _series(df, ["raw_gripper_dist_mm", "filt_gripper_dist_mm"])
-        _jitter_line(log, "Grip", _jitter(d["raw_gripper_dist_mm"]),
-                     _jitter(d["filt_gripper_dist_mm"]), "mm")
-
-        step_raw = np.degrees(2 * np.arccos(np.clip(np.abs(np.sum(raw_q[:-1] * raw_q[1:], axis=1)), 0.0, 1.0)))
-        step_filt = np.degrees(2 * np.arccos(np.clip(np.abs(np.sum(filt_q[:-1] * filt_q[1:], axis=1)), 0.0, 1.0)))
-        _jitter_line(log, "Ori", _jitter(step_raw, 1), _jitter(step_filt, 1), "deg")
-
-        # Angular velocity
-        dt = np.diff(dq[TIME_COL].to_numpy())
-        valid = dt > 0
-        om_raw = step_raw[valid] / dt[valid]
-        om_filt = step_filt[valid] / dt[valid]
-
-        log("\n[ANGULAR VELOCITY]")
-        log(f"  Raw : max={om_raw.max():.0f} | p99={np.percentile(om_raw, 99):.0f} | mean={om_raw.mean():.1f} deg/s")
-        log(f"  Filt: max={om_filt.max():.0f} | p99={np.percentile(om_filt, 99):.0f} | mean={om_filt.mean():.1f} deg/s")
-        log(f"  Dropped non-positive dt pairs: {int((~valid).sum())}")
-
-        n_raw = int((om_raw > OMEGA_REF_DEG_S).sum())
-        n_filt = int((om_filt > OMEGA_REF_DEG_S).sum())
-        if n_raw:
-            log(f"  [INFO] Raw: {n_raw} samples > {OMEGA_REF_DEG_S:.0f} deg/s")
-        if n_filt:
-            log(f"  [WARN] Filt: {n_filt} samples > {OMEGA_REF_DEG_S:.0f} deg/s (ref); check slew limiter")
-        else:
-            log(f"  [OK] Filt: no sample > {OMEGA_REF_DEG_S:.0f} deg/s (ref, not robot limit)")
 
         log.save(csv_path.replace(".csv", "_analysis.txt"))
 

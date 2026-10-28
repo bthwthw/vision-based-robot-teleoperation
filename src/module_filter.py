@@ -219,14 +219,15 @@ class QuaternionFilter:
 
 class GestureDebouncer:
     """ Xác nhận cử chỉ theo thời gian: vào sau press_s, thoát sau release_s. """
-    def __init__(self, min_score=0.7, press_s=0.15, release_s=0.06):
+    def __init__(self, min_score=0.7, press_s=0.15, release_s=0.06, min_score_by_label=None):
         self.min_score = min_score
+        self.min_score_by_label = min_score_by_label or {}
         self.press_s = press_s
         self.release_s = release_s
         self.reset()
 
     def update(self, label, score, t):
-        if label is None or score < self.min_score:
+        if label is None or score < self.min_score_by_label.get(label, self.min_score):
             label = None
 
         if label == self.confirmed:

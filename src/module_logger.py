@@ -9,7 +9,7 @@ class DataLogger:
     VISION_FIELDNAMES = [
         "wall_time_s", "frame_timestamp_s",
         "raw_x", "raw_y", "raw_z", "filt_x", "filt_y", "filt_z",
-        "gesture_raw", "gesture_score", "rot_cmd", "gripper_state",
+        "gesture_raw", "gesture_score", "rot_cmd", "gripper_state", "teleop_active",
     ]
  
     CONTROL_FIELDNAMES = [
@@ -117,6 +117,8 @@ class DataLogger:
  
         gripper_state = data.get("gripper_state")
         row["gripper_state"] = None if gripper_state is None else int(gripper_state == "Close")
+        teleop_active = data.get("teleop_active")
+        row["teleop_active"] = None if teleop_active is None else int(teleop_active)
  
         self._queue.put_nowait(("vision", row))
  

@@ -24,7 +24,8 @@ class PerceptionWorker:
         tracker = HandTrackerNode(model_path='model/gesture_recognizer.task')
         
         tcp_filter = Position3DFilter(min_cutoff=0.005, beta=20.0, cutoff_max=15.0, reject_max_jump_mps=2.18, slew_limit_mps=1.0)
-        debouncer = GestureDebouncer(min_score=0.7, press_s=0.15, release_s=0.06)
+        debouncer = GestureDebouncer(min_score=0.7, press_s=0.15, release_s=0.0,
+                                     min_score_by_label={"Open_Palm": 0.5, "Closed_Fist": 0.6})
         
         try:
             while self.sys.is_running:
@@ -55,16 +56,18 @@ class PerceptionWorker:
                     "raw_pos": None, "filt_pos": None,
                     "gesture_raw": gesture_raw, "gesture_score": gesture_score,
                     "rot_cmd": rot_cmd, "gripper_state": gripper_state,
+                    "teleop_active": self.sys.teleop_active,
                 }
 
                 if landmarks:
                     g_color = (0, 0, 255) if gripper_state == "Close" else (0, 255, 0)
                     cv2.putText(color_img, f"Gripper: {gripper_state}", (20, 90),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, g_color, 2, cv2.LINE_AA)
-                    cv2.putText(color_img, f"Gesture: {gesture_raw or '-'} ({gesture_score:.2f}) -> {confirmed or '-'}", (20, 130),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2, cv2.LINE_AA)
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, g_color, 2, cv2.LINE_AA)
+                    
+                    cv2.putText(color_img, f"Gesture: {confirmed or '-'} ({gesture_score:.2f})", (20, 130),
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
                     cv2.putText(color_img, f"Rot: {ROT_TEXT[rot_cmd]}", (20, 170),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 255), 2, cv2.LINE_AA)
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
 
                     uTCP, vTCP = landmarks[TCP_INDEX]
                     P_TCP_3D = camera.extract_3d_coordinates(uTCP, vTCP, depth_frame, depth_arr)
@@ -78,16 +81,16 @@ class PerceptionWorker:
                         cv2.circle(color_img, (uTCP, vTCP), 8, (0, 255, 255), cv2.FILLED)
                         cv2.circle(color_img, (int(u_disp), int(v_disp)), 8, (255, 0, 255), cv2.FILLED)
                         cv2.putText(color_img, f"TCP: X:{P_TCP_3D[0]:.3f} Y:{P_TCP_3D[1]:.3f} Z:{P_TCP_3D[2]:.3f} m", (20, 50), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2, cv2.LINE_AA)
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2, cv2.LINE_AA)
 
                         pose_data = {"position": P_TCP_3D, "rot_cmd": rot_cmd, "gripper": gripper_state}
                         self.sys.shared_pose.write(pose_data, t_s)
                     else:
                         cv2.putText(color_img, "[Perception WARN]: NO TCP DEPTH", (20, 50), 
-                                    cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+                                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
                 else:
                     cv2.putText(color_img, "[Perception WARN]: NO HAND DETECTED", (20, 50), 
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+                                cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2, cv2.LINE_AA)
                     tcp_filter.reset()
                     debouncer.reset()
 
