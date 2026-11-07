@@ -77,6 +77,11 @@ class cuRoboControllerWorker:
 
         print(f"[Controller] TCP init: Pos={[round(float(p), 3) for p in robot_base_pos]}, Quat={[round(float(q), 3) for q in robot_base_quat_wxyz]}")
 
+        has_egm = hasattr(self.sys, "shared_egm")
+        if has_egm:
+            self.sys.shared_egm.write_home(robot_base_pos, robot_base_quat_wxyz, custom_home_deg)
+            self.sys.shared_egm.write_target(robot_base_pos, robot_base_quat_wxyz)
+
         print("[Controller] cuRobo Warm-up...")
         dummy_pos = torch.tensor([robot_base_pos], dtype=torch.float32, device=tensor_args.device)
         dummy_quat = torch.tensor([robot_base_quat_wxyz], dtype=torch.float32, device=tensor_args.device)
@@ -231,6 +236,8 @@ class cuRoboControllerWorker:
 
                     last_robot_target_pos = robot_target_pos
                     robot_target_rot = candidate_rot
+                    if has_egm:
+                        self.sys.shared_egm.write_target(robot_target_pos, robot_target_quat)
                     if rotating:
                         rot_committed = 1
                 else:

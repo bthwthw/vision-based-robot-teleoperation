@@ -1,3 +1,4 @@
+import sys
 import threading
 from datetime import datetime
 import cv2
@@ -5,10 +6,11 @@ import ctypes
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 import traceback
 
-from src.shared_state import SharedPoseState, SharedJointState, SharedFrameState, SharedBoxPoseState, SharedPbState
+from src.shared_state import SharedPoseState, SharedJointState, SharedFrameState, SharedBoxPoseState, SharedPbState, SharedEgmState
 from src.worker_perception import PerceptionWorker
 from src.worker_curobo import cuRoboControllerWorker
 from src.worker_pybullet import PyBulletSimulatorWorker
+from src.worker_egm import EgmWorker
 from src.module_logger import DataLogger
 
 from tools.analyze_filter import analyze_vision
@@ -19,6 +21,8 @@ from tools.plot_control import generate_control_figures
 from tools.analyze_frequency import analyze_frequency, analyze_record_frequency,analyze_vision_frequency, correlate_long_frames
 
 # call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvarsall.bat" x64 
+
+BACKEND = "egm" if "--egm" in sys.argv else "pybullet"
 
 user32 = ctypes.windll.user32
 VK_SPACE = 0x20
@@ -35,7 +39,8 @@ def _safe(fn, *args, **kwargs):
         traceback.print_exc()
 
 class TeleopSystem:
-    def __init__(self, playback_file):
+    def __init__(self, playback_file, backend="pybullet"):
+        self.backend = backend
         self.shared_pose = SharedPoseState()
         self.shared_joints = SharedJointState()
         self.shared_frame = SharedFrameState()
@@ -43,6 +48,7 @@ class TeleopSystem:
         self.shared_box_poses = SharedBoxPoseState()
         self.shared_pb_state = SharedPbState()
         self.scene_ready = threading.Event()
+        self.shared_egm = SharedEgmState()
 
         self.shared_log = None
 
@@ -80,7 +86,8 @@ class TeleopSystem:
 
         self.perception_worker = PerceptionWorker(self)
         self.controller_worker = cuRoboControllerWorker(self)
-        self.simulator_worker = PyBulletSimulatorWorker(self)
+        self.simulator_worker = PyBulletSimulatorWorker(self) if self.backend != "egm" else None
+        self.egm_worker = EgmWorker(self) if self.backend == "egm" else None
 
         dataset_features = {
             "action": {"dtype": "float32", "shape": (7,), "names": None},
@@ -100,21 +107,27 @@ class TeleopSystem:
         #     root='./dataset',
         # )
 
-        self.dataset = LeRobotDataset.resume(
-            repo_id="bthw/lerobot-dataset",
-            root='./dataset',
-            tolerance_s=0.1,
-            image_writer_threads=4,
-        )
+        if self.backend == "egm":
+            self.dataset = None
+            self.scene_ready.set()
+        else:
+            self.dataset = LeRobotDataset.resume(
+                repo_id="bthw/lerobot-dataset",
+                root='./dataset',
+                tolerance_s=0.1,
+                image_writer_threads=4,
+            )
 
         self.task_str = "pick up the box and place it in the target zone"
         self.request_save_episode = False
         self.request_clear_episode = False
 
+        backend_worker = self.egm_worker if self.backend == "egm" else self.simulator_worker
+        backend_name = "EgmTh" if self.backend == "egm" else "PyBulletTh"
         self.threads = [
             threading.Thread(target=self.perception_worker.run, name="PerceptionTh", daemon=True),
             threading.Thread(target=self.controller_worker.run, name="ControllerTh", daemon=True),
-            threading.Thread(target=self.simulator_worker.run, name="EGMTh", daemon=True),
+            threading.Thread(target=backend_worker.run, name=backend_name, daemon=True),
         ]
         for t in self.threads:
             t.start()
@@ -151,7 +164,7 @@ class TeleopSystem:
             _safe(correlate_long_frames, v, r)
 
 def main():
-    system = TeleopSystem(playback_file=None)  
+    system = TeleopSystem(playback_file=r'data/new_cu chi.db3', backend=BACKEND)
     system.start_all()
 
     win_name = "Teleoperation Pipeline"
@@ -198,6 +211,17 @@ def main():
 
                 cv2.putText(display_frame, f"JOINT: {system.selected_joint}", (20, 210),
                             cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 255, 255), 2, cv2.LINE_AA)
+
+                if system.backend == "egm":
+                    egm = system.shared_egm.read_status()
+                    if not egm.get("linked"):
+                        egm_txt, egm_col = "EGM: waiting for controller", (0, 165, 255)
+                    elif not egm.get("armed"):
+                        egm_txt, egm_col = "EGM: NOT ARMED (frame mismatch)", (0, 0, 255)
+                    else:
+                        egm_txt, egm_col = f"EGM: linked | lead {egm.get('lead_mm', 0.0):.0f} mm", (0, 255, 0)
+                    cv2.putText(display_frame, egm_txt, (20, 260),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.8, egm_col, 2, cv2.LINE_AA)
 
                 cv2.imshow(win_name, display_frame)
 

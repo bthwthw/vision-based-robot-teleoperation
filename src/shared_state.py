@@ -89,3 +89,37 @@ class SharedPbState:
     def read(self):
         with self._lock:
             return self._pbstate, self._timestamp
+
+class SharedEgmState:
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._target = None
+        self._home = None
+        self._status = {}
+
+    def write_target(self, position_m, quat_wxyz):
+        with self._lock:
+            self._target = {"position": [float(v) for v in position_m],
+                            "quat_wxyz": [float(v) for v in quat_wxyz]}
+
+    def read_target(self):
+        with self._lock:
+            return None if self._target is None else dict(self._target)
+
+    def write_home(self, position_m, quat_wxyz, q_deg):
+        with self._lock:
+            self._home = {"position": [float(v) for v in position_m],
+                          "quat_wxyz": [float(v) for v in quat_wxyz],
+                          "q_deg": [float(v) for v in q_deg]}
+
+    def read_home(self):
+        with self._lock:
+            return None if self._home is None else dict(self._home)
+
+    def write_status(self, status):
+        with self._lock:
+            self._status = dict(status)
+
+    def read_status(self):
+        with self._lock:
+            return dict(self._status)
